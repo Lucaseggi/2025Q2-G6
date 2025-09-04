@@ -1,0 +1,161 @@
+services:
+  localstack:
+    container_name: localstack-sqs
+    image: localstack/localstack:3.0
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      - SERVICES=sqs
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "./localstack/init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - rag-network
+
+  opensearch:
+    build: ./opensearch-db
+    container_name: opensearch-node
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true"
+      - "plugins.security.disabled=true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - rag-network
+
+  scraper-ms:
+    build:
+      context: .
+      dockerfile: ./01-scraper-ms/Dockerfile
+    container_name: scraper-ms
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SQS_ENDPOINT=http://localstack:4566
+      - PROCESSING_QUEUE_URL=http://localstack:4566/000000000000/processing-queue
+    depends_on:
+      localstack:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  processing-ms:
+    build:
+      context: .
+      dockerfile: ./02-processing-ms/Dockerfile
+    container_name: processing-ms
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SQS_ENDPOINT=http://localstack:4566
+      - PROCESSING_QUEUE_URL=http://localstack:4566/000000000000/processing-queue
+      - EMBEDDING_QUEUE_URL=http://localstack:4566/000000000000/embedding-queue
+    depends_on:
+      localstack:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  embedding-ms:
+    build:
+      context: .
+      dockerfile: ./03-embedding-ms/Dockerfile
+    container_name: embedding-ms
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SQS_ENDPOINT=http://localstack:4566
+      - EMBEDDING_QUEUE_URL=http://localstack:4566/000000000000/embedding-queue
+      - INSERTING_QUEUE_URL=http://localstack:4566/000000000000/inserting-queue
+    depends_on:
+      localstack:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  inserter-ms:
+    build:
+      context: .
+      dockerfile: ./04-inserter-ms/Dockerfile
+    container_name: inserter-ms
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SQS_ENDPOINT=http://localstack:4566
+      - INSERTING_QUEUE_URL=http://localstack:4566/000000000000/inserting-queue
+      - OPENSEARCH_ENDPOINT=http://opensearch:9200
+    depends_on:
+      localstack:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  django-api:
+    build:
+      context: .
+      dockerfile: ./api/Dockerfile
+    container_name: django-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=1
+      - DATABASE_URL=sqlite:///app/db.sqlite3
+      - OPENSEARCH_ENDPOINT=http://opensearch:9200
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - django-data:/app/db
+    networks:
+      - rag-network
+
+volumes:
+  opensearch-data:
+    driver: local
+  django-data:
+    driver: local
+
+networks:
+  rag-network:
+    driver: bridge

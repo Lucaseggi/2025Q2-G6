@@ -1,0 +1,25 @@
+cluster.name: opensearch-cluster
+node.name: opensearch-node
+
+# Network settings
+network.host: 0.0.0.0
+http.port: 9200
+transport.tcp.port: 9300
+
+# Single node setup
+discovery.type: single-node
+bootstrap.memory_lock: true
+
+# Security disabled for local development
+plugins.security.disabled: true
+
+# Performance settings
+indices.query.bool.max_clause_count: 10000
+search.max_buckets: 65536
+
+# Vector search settings (for embeddings)
+knn.memory.circuit_breaker.enabled: true
+knn.memory.circuit_breaker.limit: 75%
+
+# Logging
+logger.level: INFO

@@ -1,0 +1,53 @@
+{
+  "index_patterns": ["documents*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index": {
+        "knn": true,
+        "knn.algo_param.ef_search": 100
+      }
+    },
+    "mappings": {
+      "properties": {
+        "url": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text",
+          "analyzer": "standard"
+        },
+        "processed_content": {
+          "type": "text",
+          "analyzer": "standard"
+        },
+        "chunks": {
+          "type": "text",
+          "analyzer": "standard"
+        },
+        "embeddings": {
+          "type": "knn_vector",
+          "dimension": 384,
+          "method": {
+            "name": "hnsw",
+            "space_type": "cosinesimilarity",
+            "engine": "lucene",
+            "parameters": {
+              "ef_construction": 128,
+              "m": 24
+            }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "dynamic": true
+        },
+        "timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        }
+      }
+    }
+  }
+}
