@@ -114,15 +114,18 @@ class OpenSearchService:
                 return []
             
             query_embedding = embedding_response.json()['embedding']
+            print(f"DEBUG: Query text: {query_text}")
+            print(f"DEBUG: Query embedding length: {len(query_embedding)}")
             
-            # Perform vector search
+            # Use script_score query as alternative to KNN for vector similarity
             search_body = {
                 "size": size,
                 "query": {
-                    "knn": {
-                        "embedding": {
-                            "vector": query_embedding,
-                            "k": size
+                    "script_score": {
+                        "query": {"match_all": {}},
+                        "script": {
+                            "source": "cosineSimilarity(params.query_vector, doc['embedding']) + 1.0",
+                            "params": {"query_vector": query_embedding}
                         }
                     }
                 },
@@ -131,10 +134,14 @@ class OpenSearchService:
                 }
             }
             
+            print(f"DEBUG: Search body: {json.dumps(search_body, indent=2)[:500]}...")
+            
             response = self.client.search(
                 index=self.index_name,
                 body=search_body
             )
+            
+            print(f"DEBUG: Search response: {json.dumps(response, indent=2)[:1000]}...")
             
             results = []
             for hit in response['hits']['hits']:
@@ -148,10 +155,12 @@ class OpenSearchService:
                 }
                 results.append(result)
             
+            print(f"DEBUG: Results count: {len(results)}")
             return results
             
         except Exception as e:
             logger.error(f"Error in vector search: {e}")
+            print(f"DEBUG: Vector search exception: {e}")
             return []
 
 

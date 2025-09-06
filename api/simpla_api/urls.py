@@ -1,18 +1,14 @@
-from django.contrib import admin
 from django.urls import path, include
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
+@csrf_exempt
+@require_http_methods(["GET"])
 def health_check(request):
-    return Response({'status': 'healthy', 'message': 'Simpla API is running'})
+    return JsonResponse({'status': 'healthy', 'message': 'Simpla Legal RAG API is running'})
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/auth/', include('auth_api.urls')),
     path('api/', include('articles.urls')),
     path('health/', health_check, name='health_check'),
 ]

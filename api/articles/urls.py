@@ -1,10 +1,6 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import QuestionViewSet
-
-router = DefaultRouter()
-router.register(r'questions', QuestionViewSet, basename='question')
+from django.urls import path
+from . import views
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('questions/', views.ask_question, name='ask_question'),
 ]

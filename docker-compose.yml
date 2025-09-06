@@ -138,25 +138,26 @@ services:
     networks:
       - rag-network
 
-  # django-api:
-  #   build:
-  #     context: .
-  #     dockerfile: ./api/Dockerfile
-  #   container_name: django-api
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - DEBUG=1
-  #     - DATABASE_URL=sqlite:///app/db.sqlite3
-  #     - OPENSEARCH_ENDPOINT=http://opensearch:9200
-  #   depends_on:
-  #     opensearch:
-  #       condition: service_healthy
-  #   restart: unless-stopped
-  #   volumes:
-  #     - django-data:/app/db
-  #   networks:
-  #     - rag-network
+  django-api:
+    build:
+      context: .
+      dockerfile: ./api/Dockerfile
+    container_name: django-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=1
+      - OPENSEARCH_ENDPOINT=http://opensearch:9200
+      - EMBEDDING_SERVICE_URL=http://embedding-ms:8001
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      embedding-ms:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - rag-network
 
 volumes:
   opensearch-data:
