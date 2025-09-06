@@ -23,6 +23,10 @@ class InfolegNorma:
     estado: Optional[str]
     lista_normas_que_complementa: Optional[List[Dict[str, Any]]]
     lista_normas_que_la_complementan: Optional[List[Dict[str, Any]]]
+    purified_texto_norma: Optional[str]
+    purified_texto_norma_actualizado: Optional[str]
+    structured_texto_norma: Optional[Dict[str, Any]]
+    structured_texto_norma_actualizado: Optional[Dict[str, Any]]
     
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -71,13 +75,14 @@ class ScrapedData:
 @dataclass
 class ProcessedData:
     norma: InfolegNorma
-    processed_content: str
-    chunks: List[str]
-    metadata: Dict[str, Any]
-    timestamp: str
+    processing_timestamp: str
     
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        # Convert the norma to a dict with proper date handling
+        if hasattr(self, 'norma') and self.norma:
+            data['norma'] = self.norma.to_dict()
+        return data
     
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), default=str)
@@ -91,14 +96,16 @@ class ProcessedData:
 @dataclass 
 class EmbeddedData:
     norma: InfolegNorma
-    processed_content: str
-    chunks: List[str]
-    embeddings: List[List[float]]
-    metadata: Dict[str, Any]
-    timestamp: str
+    embedding: List[float]
+    embedding_model: str
+    embedded_at: str
     
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        # Convert the norma to a dict with proper date handling
+        if hasattr(self, 'norma') and self.norma:
+            data['norma'] = self.norma.to_dict()
+        return data
     
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), default=str)

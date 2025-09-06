@@ -7,6 +7,7 @@ import json
 import time
 from .models import Question
 from .serializers import QuestionSerializer
+from .services import OpenSearchService
 
 
 class QuestionViewSet(viewsets.ModelViewSet):
@@ -30,20 +31,41 @@ class QuestionViewSet(viewsets.ModelViewSet):
                 question_text=question_text
             )
             
-            # RAG logic would go here:
-            # 1. Generate embedding for the question using EC2 embedder
-            # 2. Search vector database for similar article embeddings
-            # 3. Call LLM with context from retrieved articles
-            # 4. Return answer
+            # Search OpenSearch for relevant documents
+            opensearch_service = OpenSearchService()
+            search_results = opensearch_service.search_documents(question_text, size=5)
             
-            # Placeholder for now
-            answer = "This is a placeholder answer. RAG implementation pending."
+            if search_results:
+                # Format context from search results
+                context_parts = []
+                for result in search_results:
+                    norma = result['norma']
+                    context_parts.append(f"""
+Documento {norma.get('infoleg_id')}: {norma.get('titulo_sumario', '')}
+Tipo: {norma.get('tipo_norma', '')} - {norma.get('clase_norma', '')}
+Estado: {norma.get('estado', '')}
+""")
+                    
+                    # Add relevant text content
+                    if norma.get('purified_texto_norma_actualizado'):
+                        context_parts.append(f"Contenido actualizado: {norma['purified_texto_norma_actualizado'][:500]}...")
+                    elif norma.get('purified_texto_norma'):
+                        context_parts.append(f"Contenido: {norma['purified_texto_norma'][:500]}...")
+                
+                context = "\n\n".join(context_parts)
+                answer = f"Basado en {len(search_results)} documentos encontrados:\n\n{context}\n\n[Implementar LLM aquí para generar respuesta más sofisticada]"
+            else:
+                answer = "No se encontraron documentos relevantes para tu consulta."
+            
             question.answer_text = answer
             question.processing_time = time.time() - start_time
             question.save()
             
             serializer = self.get_serializer(question)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            response_data = serializer.data
+            response_data['search_results_count'] = len(search_results) if search_results else 0
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -31,17 +31,37 @@ def ensure_index_exists(client, index_name):
         mapping = {
             "mappings": {
                 "properties": {
-                    "id": {"type": "integer"},
-                    "title": {"type": "text"},
-                    "content": {"type": "text"},
-                    "category": {"type": "keyword"},
-                    "content_length": {"type": "integer"},
-                    "embedding": {
-                        "type": "dense_vector",
-                        "dims": 384
+                    "norma": {
+                        "properties": {
+                            "infoleg_id": {"type": "integer"},
+                            "jurisdiccion": {"type": "keyword"},
+                            "clase_norma": {"type": "keyword"},
+                            "tipo_norma": {"type": "keyword"},
+                            "sancion": {"type": "date"},
+                            "publicacion": {"type": "date"},
+                            "titulo_sumario": {"type": "text"},
+                            "titulo_resumido": {"type": "text"},
+                            "observaciones": {"type": "text"},
+                            "nro_boletin": {"type": "keyword"},
+                            "pag_boletin": {"type": "keyword"},
+                            "estado": {"type": "keyword"},
+                            "purified_texto_norma": {"type": "text"},
+                            "purified_texto_norma_actualizado": {"type": "text"},
+                            "structured_texto_norma": {"type": "object"},
+                            "structured_texto_norma_actualizado": {"type": "object"}
+                        }
                     },
-                    "timestamp": {"type": "date"},
-                    "processed_at": {"type": "date"},
+                    "embedding": {
+                        "type": "knn_vector",
+                        "dimension": 768,
+                        "method": {
+                            "name": "hnsw",
+                            "space_type": "cosinesimil",
+                            "engine": "nmslib"
+                        }
+                    },
+                    "embedding_model": {"type": "keyword"},
+                    "embedding_source": {"type": "keyword"},
                     "embedded_at": {"type": "date"},
                     "inserted_at": {"type": "date"}
                 }
@@ -76,13 +96,38 @@ def main():
                     
                     # Parse message
                     message_body = json.loads(message['Body'])
+                    
+                    # DEBUG: Print the complete dequeued message for analysis
+                    print("="*100)
+                    print("COMPLETE DEQUEUED MESSAGE FROM EMBEDDING-MS:")
+                    print("="*100)
+                    print(json.dumps(message_body, indent=2, default=str))
+                    print("="*100)
+                    
                     data = message_body['data']
                     
                     # Add insertion timestamp
                     data['inserted_at'] = datetime.now().isoformat()
                     
+                    # Get document ID from norma
+                    doc_id = data['norma']['infoleg_id']
+                    
+                    # DEBUG: Print the final document structure before insertion
+                    print("-"*100)
+                    print(f"FINAL DOCUMENT STRUCTURE FOR OPENSEARCH (ID: {doc_id}):")
+                    print("-"*100)
+                    print(f"Document ID: {doc_id}")
+                    print(f"Embedding dimensions: {len(data.get('embedding', []))}")
+                    print(f"Embedding model: {data.get('embedding_model', 'N/A')}")
+                    print(f"Embedding source: {data.get('embedding_source', 'N/A')}")
+                    print(f"Norma keys: {list(data['norma'].keys()) if 'norma' in data else 'N/A'}")
+                    print(f"Has purified_texto_norma: {'purified_texto_norma' in data['norma'] and bool(data['norma']['purified_texto_norma'])}")
+                    print(f"Has purified_texto_norma_actualizado: {'purified_texto_norma_actualizado' in data['norma'] and bool(data['norma']['purified_texto_norma_actualizado'])}")
+                    print(f"Has structured_texto_norma: {'structured_texto_norma' in data['norma'] and bool(data['norma']['structured_texto_norma'])}")
+                    print(f"Has structured_texto_norma_actualizado: {'structured_texto_norma_actualizado' in data['norma'] and bool(data['norma']['structured_texto_norma_actualizado'])}")
+                    print("-"*100)
+                    
                     # Insert into OpenSearch
-                    doc_id = data['id']
                     response_os = opensearch.index(
                         index=index_name,
                         id=doc_id,
@@ -96,6 +141,7 @@ def main():
                     )
                     
                     print(f"[{datetime.now()}] Inserter: Inserted document {doc_id} into OpenSearch - Result: {response_os['result']}")
+                    print(f"[{datetime.now()}] Inserter: OpenSearch response: {response_os}")
                     
         except Exception as e:
             print(f"[{datetime.now()}] Inserter: Error: {e}")

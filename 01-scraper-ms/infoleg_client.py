@@ -125,5 +125,10 @@ class InfolegClient:
             'texto_norma_actualizado': api_response.get('textoNormaActualizado'),
             'estado': api_response.get('estado'),
             'lista_normas_que_complementa': api_response.get('listaNormasQueComplementa', []),
-            'lista_normas_que_la_complementan': api_response.get('listaNormasQueLaComplementan', [])
+            'lista_normas_que_la_complementan': api_response.get('listaNormasQueLaComplementan', []),
+            # Initialize processing fields as None - will be populated by processing-ms
+            'purified_texto_norma': None,
+            'purified_texto_norma_actualizado': None,
+            'structured_texto_norma': None,
+            'structured_texto_norma_actualizado': None
         }

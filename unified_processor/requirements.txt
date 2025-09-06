@@ -1,0 +1,10 @@
+psycopg2-binary==2.9.7
+beautifulsoup4==4.12.2
+google-generativeai==0.8.3
+redis==5.0.1
+pyyaml==6.0.1
+email-validator==2.1.0
+aiofiles==23.2.0
+asyncpg==0.29.0
+tenacity==8.2.3
+python-dotenv==1.0.0

@@ -31,7 +31,6 @@ services:
       - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
       - "DISABLE_INSTALL_DEMO_CONFIG=true"
       - "DISABLE_SECURITY_PLUGIN=true"
-      - "plugins.security.disabled=true"
     ulimits:
       memlock:
         soft: -1
@@ -64,10 +63,11 @@ services:
       - AWS_DEFAULT_REGION=us-east-1
       - SQS_ENDPOINT=http://localstack:4566
       - PROCESSING_QUEUE_URL=http://localstack:4566/000000000000/processing-queue
+      - SCRAPE_MODE=once
     depends_on:
       localstack:
         condition: service_healthy
-    restart: unless-stopped
+    restart: "no"
     networks:
       - rag-network
 
@@ -83,6 +83,10 @@ services:
       - SQS_ENDPOINT=http://localstack:4566
       - PROCESSING_QUEUE_URL=http://localstack:4566/000000000000/processing-queue
       - EMBEDDING_QUEUE_URL=http://localstack:4566/000000000000/embedding-queue
+      - GEMINI_API_KEY_1=${GEMINI_API_KEY_1:-}
+      - GEMINI_API_KEY_2=${GEMINI_API_KEY_2:-}
+      - GEMINI_API_KEY_3=${GEMINI_API_KEY_3:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     depends_on:
       localstack:
         condition: service_healthy
@@ -95,6 +99,8 @@ services:
       context: .
       dockerfile: ./03-embedding-ms/Dockerfile
     container_name: embedding-ms
+    ports:
+      - "8001:8001"
     environment:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
@@ -102,6 +108,8 @@ services:
       - SQS_ENDPOINT=http://localstack:4566
       - EMBEDDING_QUEUE_URL=http://localstack:4566/000000000000/embedding-queue
       - INSERTING_QUEUE_URL=http://localstack:4566/000000000000/inserting-queue
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - EMBEDDING_API_PORT=8001
     depends_on:
       localstack:
         condition: service_healthy
@@ -130,25 +138,25 @@ services:
     networks:
       - rag-network
 
-  django-api:
-    build:
-      context: .
-      dockerfile: ./api/Dockerfile
-    container_name: django-api
-    ports:
-      - "8000:8000"
-    environment:
-      - DEBUG=1
-      - DATABASE_URL=sqlite:///app/db.sqlite3
-      - OPENSEARCH_ENDPOINT=http://opensearch:9200
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    restart: unless-stopped
-    volumes:
-      - django-data:/app/db
-    networks:
-      - rag-network
+  # django-api:
+  #   build:
+  #     context: .
+  #     dockerfile: ./api/Dockerfile
+  #   container_name: django-api
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - DEBUG=1
+  #     - DATABASE_URL=sqlite:///app/db.sqlite3
+  #     - OPENSEARCH_ENDPOINT=http://opensearch:9200
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   volumes:
+  #     - django-data:/app/db
+  #   networks:
+  #     - rag-network
 
 volumes:
   opensearch-data:

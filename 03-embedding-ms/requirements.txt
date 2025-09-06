@@ -1,1 +1,4 @@
 # Common dependencies are in shared/requirements.txt
+google-genai
+flask
+numpy

@@ -5,12 +5,158 @@ import threading
 import os
 from pathlib import Path
 from django.conf import settings
+from opensearchpy import OpenSearch
 
 logger = logging.getLogger(__name__)
 
 
+class OpenSearchService:
+    """Service for managing OpenSearch operations with the new document structure"""
+    
+    def __init__(self):
+        self.opensearch_endpoint = settings.OPENSEARCH_ENDPOINT
+        self.embedding_service_url = settings.EMBEDDING_SERVICE_URL
+        self.client = OpenSearch(
+            hosts=[self.opensearch_endpoint],
+            http_compress=True,
+            use_ssl=False,
+            verify_certs=False,
+            ssl_assert_hostname=False,
+            ssl_show_warn=False,
+        )
+        self.index_name = "documents"
+    
+    def search_documents(self, query_text, size=10):
+        """Search documents using text search on relevant fields"""
+        try:
+            search_body = {
+                "size": size,
+                "query": {
+                    "multi_match": {
+                        "query": query_text,
+                        "fields": [
+                            "norma.titulo_sumario^3",
+                            "norma.titulo_resumido^3", 
+                            "norma.purified_texto_norma^2",
+                            "norma.purified_texto_norma_actualizado^2",
+                            "norma.observaciones",
+                            "norma.structured_texto_norma",
+                            "norma.structured_texto_norma_actualizado"
+                        ],
+                        "type": "best_fields",
+                        "fuzziness": "AUTO"
+                    }
+                },
+                "highlight": {
+                    "fields": {
+                        "norma.titulo_sumario": {},
+                        "norma.purified_texto_norma": {"fragment_size": 150, "number_of_fragments": 3}
+                    }
+                }
+            }
+            
+            response = self.client.search(
+                index=self.index_name,
+                body=search_body
+            )
+            
+            results = []
+            for hit in response['hits']['hits']:
+                doc = hit['_source']
+                result = {
+                    'id': hit['_id'],
+                    'score': hit['_score'],
+                    'norma': doc['norma'],
+                    'highlight': hit.get('highlight', {}),
+                    'embedded_at': doc.get('embedded_at')
+                }
+                results.append(result)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error searching OpenSearch: {e}")
+            return []
+    
+    def get_document_by_id(self, doc_id):
+        """Get a specific document by its ID"""
+        try:
+            response = self.client.get(
+                index=self.index_name,
+                id=doc_id
+            )
+            return response['_source']
+        except Exception as e:
+            logger.error(f"Error getting document {doc_id}: {e}")
+            return None
+    
+    def get_documents_count(self):
+        """Get total number of documents in the index"""
+        try:
+            response = self.client.count(index=self.index_name)
+            return response['count']
+        except Exception as e:
+            logger.error(f"Error getting document count: {e}")
+            return 0
+    
+    def search_documents_by_embedding(self, query_text, size=10):
+        """Search documents using vector similarity"""
+        try:
+            # Get embedding for the query text
+            embedding_response = requests.post(
+                f"{self.embedding_service_url}/embed",
+                json={'text': query_text},
+                timeout=30
+            )
+            
+            if embedding_response.status_code != 200:
+                logger.error(f"Failed to get embedding: {embedding_response.text}")
+                return []
+            
+            query_embedding = embedding_response.json()['embedding']
+            
+            # Perform vector search
+            search_body = {
+                "size": size,
+                "query": {
+                    "knn": {
+                        "embedding": {
+                            "vector": query_embedding,
+                            "k": size
+                        }
+                    }
+                },
+                "_source": {
+                    "excludes": ["embedding"]  # Don't return the large embedding vector
+                }
+            }
+            
+            response = self.client.search(
+                index=self.index_name,
+                body=search_body
+            )
+            
+            results = []
+            for hit in response['hits']['hits']:
+                doc = hit['_source']
+                result = {
+                    'id': hit['_id'],
+                    'score': hit['_score'],
+                    'norma': doc['norma'],
+                    'embedding_source': doc.get('embedding_source'),
+                    'embedded_at': doc.get('embedded_at')
+                }
+                results.append(result)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error in vector search: {e}")
+            return []
+
+
 class EmbeddingService:
-    """Service for managing embeddings with EC2 embedder and vector database"""
+    """Legacy service for managing embeddings with EC2 embedder and vector database"""
     
     def __init__(self):
         self.ec2_embedder_url = settings.EC2_EMBEDDER_URL

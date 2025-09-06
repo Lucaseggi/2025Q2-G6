@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework_simplejwt'
+    'rest_framework_simplejwt',
     'corsheaders',
     'articles',
     'auth_api',
@@ -163,6 +163,10 @@ CORS_ALLOW_CREDENTIALS = True
 # Embedding and Vector Database Configuration
 EC2_EMBEDDER_URL = config('EC2_EMBEDDER_URL', default='http://localhost:8001')
 VECTOR_DB_URL = config('VECTOR_DB_URL', default='http://localhost:8002')
+EMBEDDING_SERVICE_URL = config('EMBEDDING_SERVICE_URL', default='http://embedding-ms:8001')
+
+# OpenSearch Configuration
+OPENSEARCH_ENDPOINT = config('OPENSEARCH_ENDPOINT', default='http://opensearch:9200')
 
 # LLM Configuration
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')

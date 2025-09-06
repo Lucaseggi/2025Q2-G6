@@ -9,4 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt -r shared_requirements.txt
 COPY ./shared ./shared
 COPY ./02-processing-ms .
 
-CMD ["python", "main.py"]
+CMD ["python", "processor.py"]
