@@ -242,8 +242,9 @@ def main():
     
     # Start Flask API server
     port = int(os.getenv('EMBEDDING_API_PORT', 8001))
-    print(f"Embedding API server starting on port {port}")
-    app.run(host='0.0.0.0', port=port, debug=False)
+    debug_mode = os.getenv('DEBUG', '0') == '1'
+    print(f"Embedding API server starting on port {port} (debug={debug_mode})")
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
 
 if __name__ == "__main__":
     main()

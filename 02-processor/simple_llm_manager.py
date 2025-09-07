@@ -635,7 +635,7 @@ INSTRUCCIONES:
         # Try each model in escalation chain
         for model_index, model_name in enumerate(self.config.gemini.models):
             try:
-                logger.info(f"🤖 ATTEMPTING MODEL {model_index + 1}/{len(self.config.gemini.models)}: {model_name}")
+                logger.info(f"ATTEMPTING MODEL {model_index + 1}/{len(self.config.gemini.models)}: {model_name}")
                 
                 result = self._call_gemini_with_retries_sync(model_name, text, self.get_system_prompt())
                 models_used.append(model_name)
@@ -649,7 +649,7 @@ INSTRUCCIONES:
                 
                 if result.success:
                     # DEBUG: Log the raw LLM output
-                    logger.info(f"✅ MODEL {model_name} - API CALL SUCCESSFUL")
+                    logger.info(f"MODEL {model_name} - API CALL SUCCESSFUL")
                     logger.info("-"*60)
                     logger.info("DEBUG: RAW LLM OUTPUT:")
                     logger.info("-"*60)
@@ -662,13 +662,13 @@ INSTRUCCIONES:
                     result.json_validation_passed = json_valid
                     result.json_validation_error = json_error if not json_valid else None
                     
-                    logger.info(f"📋 JSON VALIDATION: {'✅ PASSED' if json_valid else '❌ FAILED'}")
+                    logger.info(f"JSON VALIDATION: {'PASSED' if json_valid else 'FAILED'}")
                     if not json_valid:
                         logger.error(f"JSON validation error: {json_error}")
                     
                     # If JSON validation fails and we're not on the last model, escalate immediately
                     if not json_valid and model_name != self.config.gemini.models[-1]:
-                        logger.warning(f"🔄 ESCALATING: JSON validation failed with {model_name}")
+                        logger.warning(f"ESCALATING: JSON validation failed with {model_name}")
                         logger.warning(f"   Reason: {json_error}")
                         logger.warning(f"   Moving to next model...")
                         result.models_used = models_used
@@ -681,7 +681,7 @@ INSTRUCCIONES:
                     result.models_used = models_used
                     result.processing_time = time.time() - start_time
                     
-                    logger.info(f"📊 SIMILARITY SCORE: {similarity:.4f}")
+                    logger.info(f"SIMILARITY SCORE: {similarity:.4f}")
                     
                     # Generate content diff
                     result.content_diff = self._generate_content_diff(text, json.dumps(result.structured_data))
@@ -693,8 +693,8 @@ INSTRUCCIONES:
                     result.quality_control_passed = quality_passed
                     result.human_intervention_required = human_intervention
                     
-                    logger.info(f"🎯 QUALITY CONTROL: {'✅ PASSED' if quality_passed else '❌ FAILED'}")
-                    logger.info(f"🤵 HUMAN INTERVENTION: {'❌ REQUIRED' if human_intervention else '✅ NOT NEEDED'}")
+                    logger.info(f"QUALITY CONTROL: {'PASSED' if quality_passed else 'FAILED'}")
+                    logger.info(f"HUMAN INTERVENTION: {'REQUIRED' if human_intervention else 'NOT NEEDED'}")
                     if not quality_passed or human_intervention:
                         logger.info(f"   Reason: {qc_reason}")
                     
@@ -702,9 +702,9 @@ INSTRUCCIONES:
                     # Return if: (JSON valid AND quality passed) OR we're on the last model
                     if (json_valid and quality_passed) or model_name == self.config.gemini.models[-1]:
                         if json_valid and quality_passed:
-                            logger.info(f"🎉 SUCCESS WITH {model_name}: All checks passed!")
+                            logger.info(f"SUCCESS WITH {model_name}: All checks passed!")
                         else:
-                            logger.warning(f"⚠️ FINAL MODEL {model_name}: Returning despite issues")
+                            logger.warning(f"FINAL MODEL {model_name}: Returning despite issues")
                             if not json_valid:
                                 logger.warning(f"   - JSON validation failed: {json_error}")
                             if not quality_passed:
@@ -718,13 +718,13 @@ INSTRUCCIONES:
                         if not quality_passed:
                             escalation_reasons.append(f"Quality control failed: {qc_reason}")
                         
-                        logger.warning(f"🔄 ESCALATING FROM {model_name}:")
+                        logger.warning(f"ESCALATING FROM {model_name}:")
                         for reason in escalation_reasons:
                             logger.warning(f"   - {reason}")
                         continue
                         
             except Exception as e:
-                logger.error(f"❌ MODEL {model_name} - API CALL FAILED")
+                logger.error(f"MODEL {model_name} - API CALL FAILED")
                 logger.error(f"   Error: {str(e)}")
                 logger.error(f"   Exception type: {type(e).__name__}")
                 if model_index < len(self.config.gemini.models) - 1:

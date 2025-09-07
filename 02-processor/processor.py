@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-sys.path.append('/app/shared')
+sys.path.append('/app/00-shared')
 from queue_client import QueueClient
 from models import ScrapedData, ProcessedData, InfolegNorma
 

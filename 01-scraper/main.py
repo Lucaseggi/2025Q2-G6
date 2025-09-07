@@ -4,14 +4,18 @@ import time
 import schedule
 from datetime import datetime
 import logging
+from flask import Flask, request, jsonify
+import threading
 
-sys.path.append('/app/shared')
+sys.path.append('/app/00-shared')
 from queue_client import QueueClient
 from models import ScrapedData, InfolegNorma
 from infoleg_client import InfolegClient, InfolegConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
 
 
 def scrape_year_range(start_year: int, end_year: int, max_normas_per_run: int = 100):
@@ -170,34 +174,167 @@ def scrape_and_send():
     # scrape_year_range(2000, 2000, max_normas_per_run=10)
 
 
+# Flask API endpoints
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'scraper-ms',
+        'timestamp': datetime.now().isoformat()
+    })
+
+
+@app.route('/scrape', methods=['POST'])
+def scrape_endpoint():
+    """Endpoint to scrape a specific norma by ID"""
+    try:
+        data = request.get_json()
+        if not data or 'infoleg_id' not in data:
+            return jsonify({
+                'error': 'Missing infoleg_id in request body',
+                'example': {'infoleg_id': 183532}
+            }), 400
+
+        infoleg_id = data['infoleg_id']
+        if not isinstance(infoleg_id, int) or infoleg_id <= 0:
+            return jsonify({
+                'error': 'infoleg_id must be a positive integer'
+            }), 400
+
+        logger.info(f"Received scrape request for norma ID: {infoleg_id}")
+        
+        # Scrape the norma
+        success = scrape_specific_norma(infoleg_id)
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': f'Successfully scraped and queued norma {infoleg_id}',
+                'infoleg_id': infoleg_id,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to scrape norma {infoleg_id}',
+                'infoleg_id': infoleg_id
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in scrape endpoint: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/scrape/batch', methods=['POST'])
+def scrape_batch_endpoint():
+    """Endpoint to scrape multiple normas by ID range"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'error': 'Missing request body',
+                'example': {'start_id': 183530, 'end_id': 183540, 'max_docs': 10}
+            }), 400
+
+        start_id = data.get('start_id')
+        end_id = data.get('end_id')
+        max_docs = data.get('max_docs', 10)
+
+        if not all(isinstance(x, int) and x > 0 for x in [start_id, end_id]):
+            return jsonify({
+                'error': 'start_id and end_id must be positive integers'
+            }), 400
+
+        if start_id >= end_id:
+            return jsonify({
+                'error': 'start_id must be less than end_id'
+            }), 400
+
+        logger.info(f"Received batch scrape request for IDs {start_id}-{end_id}, max {max_docs}")
+        
+        scraped_count = 0
+        failed_count = 0
+        
+        for norma_id in range(start_id, min(end_id + 1, start_id + max_docs)):
+            try:
+                success = scrape_specific_norma(norma_id)
+                if success:
+                    scraped_count += 1
+                else:
+                    failed_count += 1
+                    
+                # Small delay between requests
+                time.sleep(0.5)
+                    
+            except Exception as e:
+                logger.error(f"Error scraping norma {norma_id}: {e}")
+                failed_count += 1
+        
+        return jsonify({
+            'status': 'completed',
+            'message': f'Batch scraping completed',
+            'scraped_count': scraped_count,
+            'failed_count': failed_count,
+            'total_requested': min(max_docs, end_id - start_id + 1),
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Error in batch scrape endpoint: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+def run_scheduler():
+    """Run the background scheduler in a separate thread"""
+    logger.info("Background scheduler started")
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # Check every minute
+
+
 def main():
     logger.info("InfoLeg Scraper MS started")
 
     # Get configuration from environment
-    scrape_mode = os.getenv('SCRAPE_MODE', 'once')  # 'once' or 'scheduled'
+    scrape_mode = os.getenv('SCRAPE_MODE', 'service')  # 'once', 'scheduled', or 'service'
+    port = int(os.getenv('SCRAPER_PORT', 8003))
+    debug_mode = os.getenv('DEBUG', '0') == '1'
 
     if scrape_mode == 'once':
         logger.info("Running in 'once' mode - scraping and exiting")
         scrape_and_send()
         return
+    elif scrape_mode == 'scheduled':
+        # Schedule scraping job
+        interval = os.getenv('SCRAPE_INTERVAL_HOURS', '24')
+        try:
+            interval_hours = int(interval)
+            schedule.every(interval_hours).hours.do(scrape_and_send)
+            logger.info(f"Scheduled scraping every {interval_hours} hours")
+        except ValueError:
+            logger.warning(
+                f"Invalid SCRAPE_INTERVAL_HOURS: {interval}, using default 24 hours"
+            )
+            schedule.every(24).hours.do(scrape_and_send)
 
-    # Schedule scraping job
-    interval = os.getenv('SCRAPE_INTERVAL_HOURS', '24')
-    try:
-        interval_hours = int(interval)
-        schedule.every(interval_hours).hours.do(scrape_and_send)
-        logger.info(f"Scheduled scraping every {interval_hours} hours")
-    except ValueError:
-        logger.warning(
-            f"Invalid SCRAPE_INTERVAL_HOURS: {interval}, using default 24 hours"
-        )
-        schedule.every(24).hours.do(scrape_and_send)
-
-    # Keep running scheduled jobs (no immediate run - wait for schedule)
-    logger.info("Waiting for scheduled execution...")
-    while True:
-        schedule.run_pending()
-        time.sleep(60)  # Check every minute
+        # Start scheduler in background thread
+        scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+        scheduler_thread.start()
+        
+        # Start Flask API
+        logger.info(f"Starting scraper API service on port {port} (debug={debug_mode})")
+        app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    else:
+        # Default service mode - just run Flask API
+        logger.info(f"Running in 'service' mode - API only on port {port} (debug={debug_mode})")
+        app.run(host='0.0.0.0', port=port, debug=debug_mode)
 
 
 if __name__ == "__main__":

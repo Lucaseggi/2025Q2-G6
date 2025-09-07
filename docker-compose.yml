@@ -1,16 +1,15 @@
 services:
   localstack:
+    build:
+      context: ./00-localstack
+      dockerfile: Dockerfile
     container_name: localstack-sqs
-    image: localstack/localstack:3.0
     ports:
       - "4566:4566"
       - "4510-4559:4510-4559"
-    environment:
-      - SERVICES=sqs
-      - DEBUG=1
-      - DOCKER_HOST=unix:///var/run/docker.sock
+    env_file:
+      - ./00-localstack/.env
     volumes:
-      - "./localstack/init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh"
       - "/var/run/docker.sock:/var/run/docker.sock"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/health"]
@@ -23,14 +22,8 @@ services:
   opensearch:
     build: ./opensearch-db
     container_name: opensearch-node
-    environment:
-      - cluster.name=opensearch-cluster
-      - node.name=opensearch-node
-      - discovery.type=single-node
-      - bootstrap.memory_lock=true
-      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
-      - "DISABLE_INSTALL_DEMO_CONFIG=true"
-      - "DISABLE_SECURITY_PLUGIN=true"
+    env_file:
+      - ./opensearch-db/.env
     ulimits:
       memlock:
         soft: -1
@@ -45,90 +38,22 @@ services:
       - opensearch-data:/usr/share/opensearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
-      interval: 30s
+      interval: 10s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 20s
     networks:
       - rag-network
 
-  scraper-ms:
+  scraper:
     build:
       context: .
-      dockerfile: ./01-scraper-ms/Dockerfile
-    container_name: scraper-ms
-    environment:
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - AWS_DEFAULT_REGION=us-east-1
-      - SQS_ENDPOINT=http://localstack:4566
-      - PROCESSING_QUEUE_URL=http://localstack:4566/000000000000/processing-queue
-      - SCRAPE_MODE=once
-    depends_on:
-      localstack:
-        condition: service_healthy
-    restart: "no"
-    networks:
-      - rag-network
-
-  processing-ms:
-    build:
-      context: .
-      dockerfile: ./02-processing-ms/Dockerfile
-    container_name: processing-ms
-    environment:
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - AWS_DEFAULT_REGION=us-east-1
-      - SQS_ENDPOINT=http://localstack:4566
-      - PROCESSING_QUEUE_URL=http://localstack:4566/000000000000/processing-queue
-      - EMBEDDING_QUEUE_URL=http://localstack:4566/000000000000/embedding-queue
-      - GEMINI_API_KEY_1=${GEMINI_API_KEY_1:-}
-      - GEMINI_API_KEY_2=${GEMINI_API_KEY_2:-}
-      - GEMINI_API_KEY_3=${GEMINI_API_KEY_3:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-    depends_on:
-      localstack:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - rag-network
-
-  embedding-ms:
-    build:
-      context: .
-      dockerfile: ./03-embedding-ms/Dockerfile
-    container_name: embedding-ms
+      dockerfile: ./01-scraper/Dockerfile
+    container_name: scraper
     ports:
-      - "8001:8001"
-    environment:
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - AWS_DEFAULT_REGION=us-east-1
-      - SQS_ENDPOINT=http://localstack:4566
-      - EMBEDDING_QUEUE_URL=http://localstack:4566/000000000000/embedding-queue
-      - INSERTING_QUEUE_URL=http://localstack:4566/000000000000/inserting-queue
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - EMBEDDING_API_PORT=8001
-    depends_on:
-      localstack:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - rag-network
-
-  inserter-ms:
-    build:
-      context: .
-      dockerfile: ./04-inserter-ms/Dockerfile
-    container_name: inserter-ms
-    environment:
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - AWS_DEFAULT_REGION=us-east-1
-      - SQS_ENDPOINT=http://localstack:4566
-      - INSERTING_QUEUE_URL=http://localstack:4566/000000000000/inserting-queue
-      - OPENSEARCH_ENDPOINT=http://opensearch:9200
+      - "8003:8003"
+    env_file:
+      - ./01-scraper/.env
     depends_on:
       localstack:
         condition: service_healthy
@@ -138,22 +63,69 @@ services:
     networks:
       - rag-network
 
-  django-api:
+  processor:
+    build:
+      context: .
+      dockerfile: ./02-processor/Dockerfile
+    container_name: processor
+    env_file:
+      - ./02-processor/.env
+    depends_on:
+      localstack:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  embedder:
+    build:
+      context: .
+      dockerfile: ./03-embedder/Dockerfile
+    container_name: embedder
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./03-embedder/.env
+    depends_on:
+      localstack:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  inserter:
+    build:
+      context: .
+      dockerfile: ./04-inserter/Dockerfile
+    container_name: inserter
+    env_file:
+      - ./04-inserter/.env
+    depends_on:
+      localstack:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  api:
     build:
       context: .
       dockerfile: ./api/Dockerfile
-    container_name: django-api
+    container_name: api
     ports:
       - "8000:8000"
-    environment:
-      - DEBUG=1
-      - OPENSEARCH_ENDPOINT=http://opensearch:9200
-      - EMBEDDING_SERVICE_URL=http://embedding-ms:8001
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    env_file:
+      - ./api/.env
     depends_on:
       opensearch:
         condition: service_healthy
-      embedding-ms:
+      embedder:
         condition: service_started
     restart: unless-stopped
     networks:
