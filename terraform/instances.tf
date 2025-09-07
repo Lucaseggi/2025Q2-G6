@@ -50,6 +50,7 @@ resource "aws_instance" "processing-ms" {
   subnet_id              = aws_subnet.private1.id
   security_groups        = [aws_security_group.private_sg.id]
   associate_public_ip_address = false
+  key_name               = aws_key_pair.master-key.key_name
 
   tags = {
     Name = var.processing_ms_name
@@ -62,6 +63,7 @@ resource "aws_instance" "embedding-ms" {
   subnet_id              = aws_subnet.private1.id
   security_groups        = [aws_security_group.private_sg.id]
   associate_public_ip_address = false
+  key_name               = aws_key_pair.master-key.key_name
 
   tags = {
     Name = var.embedding_ms_name
@@ -74,6 +76,7 @@ resource "aws_instance" "inserter-ms" {
   subnet_id              = aws_subnet.private1.id
   security_groups        = [aws_security_group.private_sg.id]
   associate_public_ip_address = false
+  key_name               = aws_key_pair.master-key.key_name
 
   tags = {
     Name = var.inserter_ms_name
@@ -86,6 +89,7 @@ resource "aws_instance" "queue" {
   subnet_id              = aws_subnet.private1.id
   security_groups        = [aws_security_group.private_sg.id]
   associate_public_ip_address = false
+  key_name               = aws_key_pair.master-key.key_name
 
   tags = {
     Name = var.queue_name
@@ -98,6 +102,7 @@ resource "aws_instance" "vector-db" {
   subnet_id              = aws_subnet.private2.id
   security_groups        = [aws_security_group.vdb_sg.id]
   associate_public_ip_address = false
+  key_name               = aws_key_pair.master-key.key_name
 
   tags = {
     Name = var.queue_name
