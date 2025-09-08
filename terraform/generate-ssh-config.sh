@@ -26,8 +26,8 @@ BASTION_KEY="~/.ssh/master-key.pem"
   echo
 } >> "$SSH_CONFIG"
 
-# List of instance hostnames
-INSTANCES=("scrapper-ms" "processing-ms" "embedding-ms" "inserter-ms")
+# List of instance hostnames (atado con alambres)
+INSTANCES=("scrapper-ms" "processing-ms" "embedding-ms" "inserter-ms" "queue" "vector-db")
 
 # Loop through instances to generate config
 for instance in "${INSTANCES[@]}"; do
@@ -47,4 +47,3 @@ for instance in "${INSTANCES[@]}"; do
 done
 
 echo "✅ SSH config created at $SSH_CONFIG."
-echo "Use it with: ssh -F $SSH_CONFIG <host>"

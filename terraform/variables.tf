@@ -85,6 +85,7 @@ variable "processing_ms_name" {}
 variable "embedding_ms_name" {}
 variable "inserter_ms_name" {}
 variable "queue_name" {}
+variable "vdb_name" {}
 
 variable "default_instance_type" {}
 

@@ -35,6 +35,6 @@ output "queue_private_ip" {
   value = aws_instance.queue.private_ip
 }
 
-output "vdb_private_ip" {
+output "vector_db_private_ip" {
   value = aws_instance.vector-db.private_ip
 }

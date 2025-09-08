@@ -27,5 +27,6 @@ processing_ms_name = "processing-ms"
 embedding_ms_name = "embedding-ms"
 inserter_ms_name = "inserter-ms"
 queue_name = "queue"
+vdb_name = "vector-db"
 
 default_instance_type = "t2.micro"

@@ -61,6 +61,14 @@ resource "aws_security_group" "private_sg" {
     security_groups = [aws_security_group.public_sg.id]
   }
 
+  ingress {
+    description     = "Allow RabbitMQ traffic from private SG"
+    from_port       = 5672
+    to_port         = 5672
+    protocol        = "tcp"
+    security_groups = [aws_security_group.private_sg.id]
+  }
+
   egress {
     description = "All outbound"
     from_port   = 0
@@ -94,6 +102,14 @@ resource "aws_security_group" "vdb_sg" {
     to_port         = 22
     protocol        = "tcp"
     security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
+  }
+
+    ingress {
+    description = "OpenSearch"
+    from_port   = 9200
+    to_port     = 9200
+    protocol    = "tcp"
+    self        = true
   }
 
   egress {
