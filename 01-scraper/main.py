@@ -17,6 +17,37 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Initialize startup logic when imported (for gunicorn)
+def initialize_app():
+    """Initialize the app for gunicorn"""
+    logger.info("InfoLeg Scraper MS started")
+    
+    # Get configuration from environment
+    scrape_mode = os.getenv('SCRAPE_MODE', 'service')  # 'once', 'scheduled', or 'service'
+    
+    if scrape_mode == 'scheduled':
+        # Schedule scraping job
+        interval = os.getenv('SCRAPE_INTERVAL_HOURS', '24')
+        try:
+            interval_hours = int(interval)
+            schedule.every(interval_hours).hours.do(scrape_and_send)
+            logger.info(f"Scheduled scraping every {interval_hours} hours")
+        except ValueError:
+            logger.warning(
+                f"Invalid SCRAPE_INTERVAL_HOURS: {interval}, using default 24 hours"
+            )
+            schedule.every(24).hours.do(scrape_and_send)
+
+        # Start scheduler in background thread
+        scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+        scheduler_thread.start()
+        logger.info("Started scheduled mode with background scheduler")
+    else:
+        logger.info(f"Running in '{scrape_mode}' mode - API service")
+
+# Initialize when imported (for gunicorn)
+initialize_app()
+
 
 def scrape_year_range(start_year: int, end_year: int, max_normas_per_run: int = 100):
     """Scrape normas from a year range, limiting the number per run"""

@@ -2,3 +2,4 @@ boto3
 google-genai
 flask
 numpy
+gunicorn==21.2.0

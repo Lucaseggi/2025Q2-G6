@@ -46,9 +46,7 @@ services:
       - rag-network
 
   scraper:
-    build:
-      context: .
-      dockerfile: ./01-scraper/Dockerfile
+    build: ./01-scraper
     container_name: scraper
     ports:
       - "8003:8003"
@@ -64,9 +62,7 @@ services:
       - rag-network
 
   processor:
-    build:
-      context: .
-      dockerfile: ./02-processor/Dockerfile
+    build: ./02-processor
     container_name: processor
     env_file:
       - ./02-processor/.env
@@ -80,9 +76,7 @@ services:
       - rag-network
 
   embedder:
-    build:
-      context: .
-      dockerfile: ./03-embedder/Dockerfile
+    build: ./03-embedder
     container_name: embedder
     ports:
       - "8001:8001"
@@ -98,9 +92,7 @@ services:
       - rag-network
 
   inserter:
-    build:
-      context: .
-      dockerfile: ./04-inserter/Dockerfile
+    build: ./04-inserter
     container_name: inserter
     env_file:
       - ./04-inserter/.env
@@ -114,12 +106,10 @@ services:
       - rag-network
 
   api:
-    build:
-      context: .
-      dockerfile: ./api/Dockerfile
+    build: ./api
     container_name: api
     ports:
-      - "8000:8000"
+      - "8010:8000"
     env_file:
       - ./api/.env
     depends_on:

@@ -13,6 +13,22 @@ import numpy as np
 
 app = Flask(__name__)
 
+# Initialize startup logic when imported (for gunicorn) - will be called at end of file
+def initialize_app():
+    """Initialize the app for gunicorn"""
+    print("Starting Embedding MS with both queue processor and API server...")
+    
+    # Debug: Check if API key is available
+    api_key = os.getenv('GEMINI_API_KEY')
+    if api_key:
+        print(f"[{datetime.now()}] Gemini API key found (length: {len(api_key)} chars)")
+    else:
+        print(f"[{datetime.now()}] WARNING: GEMINI_API_KEY environment variable not set!")
+    
+    # Start queue processor in background
+    start_queue_processor()
+    print("Embedding service initialized")
+
 def create_sqs_client():
     return boto3.client(
         'sqs',
@@ -248,3 +264,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Initialize when imported (for gunicorn)
+initialize_app()

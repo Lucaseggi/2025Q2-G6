@@ -22,7 +22,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-j&j1gu^=pfd*mgyam-$w3dab3nkpyxoz8vaptvb1nf-%o1csr_')
+SECRET_KEY = config(
+    'SECRET_KEY',
+    default='django-insecure-j&j1gu^=pfd*mgyam-gw3dab3nkpyxoz8vaptvb1nf-%o1csr_',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
@@ -128,8 +131,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # JWT Configuration
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=30, cast=int)),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=config('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=7, cast=int)),
+    'ACCESS_TOKEN_LIFETIME': timedelta(
+        minutes=config('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=30, cast=int)
+    ),
+    'REFRESH_TOKEN_LIFETIME': timedelta(
+        days=config('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=7, cast=int)
+    ),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
 }
@@ -145,7 +152,9 @@ CORS_ALLOW_CREDENTIALS = True
 # Embedding and Vector Database Configuration
 EC2_EMBEDDER_URL = config('EC2_EMBEDDER_URL', default='http://localhost:8001')
 VECTOR_DB_URL = config('VECTOR_DB_URL', default='http://localhost:8002')
-EMBEDDING_SERVICE_URL = config('EMBEDDING_SERVICE_URL', default='http://embedding-ms:8001')
+EMBEDDING_SERVICE_URL = config(
+    'EMBEDDING_SERVICE_URL', default='http://embedding-ms:8001'
+)
 
 # OpenSearch Configuration
 OPENSEARCH_ENDPOINT = config('OPENSEARCH_ENDPOINT', default='http://opensearch:9200')

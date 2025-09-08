@@ -5,3 +5,4 @@ opensearch-py==2.4.0
 aiohttp
 requests
 google-genai
+gunicorn==21.2.0

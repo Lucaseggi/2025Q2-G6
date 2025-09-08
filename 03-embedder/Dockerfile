@@ -2,9 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY ./03-embedder/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./03-embedder .
+COPY . .
 
-CMD ["python", "main.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8001", "--workers", "2", "main:app"]

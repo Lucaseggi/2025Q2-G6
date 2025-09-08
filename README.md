@@ -126,7 +126,7 @@ DEBUG=0
 **`api/.env`**
 ```bash
 # Django Configuration
-SECRET_KEY=django-insecure-j&j1gu^=pfd*mgyam-$w3dab3nkpyxoz8vaptvb1nf-%o1csr_
+SECRET_KEY=django-insecure-j&j1gu^=pfd*mgyam-gw3dab3nkpyxoz8vaptvb1nf-%o1csr_
 DEBUG=0
 
 # External Service URLs
