@@ -38,6 +38,9 @@ logs-opensearch:
 logs-django:
 	docker compose logs -f django-api
 
+logs-frontend:
+	docker compose logs -f frontend-app
+
 # Clean up containers and volumes
 clean:
 	docker compose down -v
@@ -62,6 +65,9 @@ shell-embedding:
 
 shell-inserter:
 	docker compose exec inserter-ms /bin/bash
+
+shell-frontend:
+	docker compose exec frontend-app /bin/sh
 
 # Check OpenSearch health
 check-opensearch:
