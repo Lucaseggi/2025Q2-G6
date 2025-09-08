@@ -1,18 +1,19 @@
 services:
-  localstack:
+  rabbitmq:
     build:
-      context: ./00-localstack
+      context: ./00-rabbitmq
       dockerfile: Dockerfile
-    container_name: localstack-sqs
+    container_name: rabbitmq-server
     ports:
-      - "4566:4566"
-      - "4510-4559:4510-4559"
+      - "5672:5672"     # AMQP port
+      - "15672:15672"   # Management UI
     env_file:
-      - ./00-localstack/.env
+      - ./00-rabbitmq/.env
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
+      - rabbitmq-data:/var/lib/rabbitmq
+      - rabbitmq-logs:/var/log/rabbitmq
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4566/health"]
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -53,7 +54,7 @@ services:
     env_file:
       - ./01-scraper/.env
     depends_on:
-      localstack:
+      rabbitmq:
         condition: service_healthy
       opensearch:
         condition: service_healthy
@@ -67,7 +68,7 @@ services:
     env_file:
       - ./02-processor/.env
     depends_on:
-      localstack:
+      rabbitmq:
         condition: service_healthy
       opensearch:
         condition: service_healthy
@@ -83,7 +84,7 @@ services:
     env_file:
       - ./03-embedder/.env
     depends_on:
-      localstack:
+      rabbitmq:
         condition: service_healthy
       opensearch:
         condition: service_healthy
@@ -97,7 +98,7 @@ services:
     env_file:
       - ./04-inserter/.env
     depends_on:
-      localstack:
+      rabbitmq:
         condition: service_healthy
       opensearch:
         condition: service_healthy
@@ -122,6 +123,10 @@ services:
       - rag-network
 
 volumes:
+  rabbitmq-data:
+    driver: local
+  rabbitmq-logs:
+    driver: local
   opensearch-data:
     driver: local
   django-data:

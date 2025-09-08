@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify
 import threading
 
 sys.path.append('/app/00-shared')
-from queue_client import QueueClient
+from rabbitmq_client import RabbitMQClient
 from models import ScrapedData, InfolegNorma
 from infoleg_client import InfolegClient, InfolegConfig
 
@@ -23,11 +23,11 @@ def initialize_app():
     logger.info("InfoLeg Scraper MS started")
     
     # Get configuration from environment
-    scrape_mode = os.getenv('SCRAPE_MODE', 'service')  # 'once', 'scheduled', or 'service'
+    scrape_mode = os.getenv('SCRAPE_MODE')  # 'once', 'scheduled', or 'service'
     
     if scrape_mode == 'scheduled':
         # Schedule scraping job
-        interval = os.getenv('SCRAPE_INTERVAL_HOURS', '24')
+        interval = os.getenv('SCRAPE_INTERVAL_HOURS')
         try:
             interval_hours = int(interval)
             schedule.every(interval_hours).hours.do(scrape_and_send)
@@ -53,7 +53,7 @@ def scrape_year_range(start_year: int, end_year: int, max_normas_per_run: int = 
     """Scrape normas from a year range, limiting the number per run"""
     logger.info(f"Starting scraping job for years {start_year}-{end_year}")
 
-    queue_client = QueueClient()
+    queue_client = RabbitMQClient()
     infoleg_client = InfolegClient(
         InfolegConfig(
             rate_limit_delay=1.5, max_retries=3, timeout=30  # Be respectful to the API
@@ -131,7 +131,7 @@ def scrape_specific_norma(norma_id: int):
     """Scrape a specific norma by its infoleg_id"""
     logger.info(f"Scraping specific norma with ID: {norma_id}")
 
-    queue_client = QueueClient()
+    queue_client = RabbitMQClient()
     infoleg_client = InfolegClient(
         InfolegConfig(
             rate_limit_delay=1.5, max_retries=3, timeout=30  # Be respectful to the API
@@ -334,9 +334,9 @@ def main():
     logger.info("InfoLeg Scraper MS started")
 
     # Get configuration from environment
-    scrape_mode = os.getenv('SCRAPE_MODE', 'service')  # 'once', 'scheduled', or 'service'
-    port = int(os.getenv('SCRAPER_PORT', 8003))
-    debug_mode = os.getenv('DEBUG', '0') == '1'
+    scrape_mode = os.getenv('SCRAPE_MODE')  # 'once', 'scheduled', or 'service'
+    port = int(os.getenv('SCRAPER_PORT'))
+    debug_mode = os.getenv('DEBUG') == '1'
 
     if scrape_mode == 'once':
         logger.info("Running in 'once' mode - scraping and exiting")
@@ -344,7 +344,7 @@ def main():
         return
     elif scrape_mode == 'scheduled':
         # Schedule scraping job
-        interval = os.getenv('SCRAPE_INTERVAL_HOURS', '24')
+        interval = os.getenv('SCRAPE_INTERVAL_HOURS')
         try:
             interval_hours = int(interval)
             schedule.every(interval_hours).hours.do(scrape_and_send)

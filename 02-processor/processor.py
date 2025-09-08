@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 sys.path.append('/app/00-shared')
-from queue_client import QueueClient
+from rabbitmq_client import RabbitMQClient
 from models import ScrapedData, ProcessedData, InfolegNorma
 
 from text_processor import TextProcessor
@@ -25,7 +25,7 @@ class DocumentProcessor:
         self.config = ProcessingConfig()
         self.text_processor = TextProcessor()
         self.llm_manager = SimpleLLMManager(self.config)
-        self.queue_client = QueueClient()
+        self.queue_client = RabbitMQClient()
         
         # Processing statistics
         self.stats = {
@@ -301,7 +301,7 @@ class DocumentProcessor:
         while True:
             try:
                 # Receive message from processing queue
-                message = self.queue_client.receive_message('processing', wait_time=20)
+                message = self.queue_client.receive_message('processing', timeout=20)
                 
                 if message:
                     logger.info("Received scraped data for processing")
