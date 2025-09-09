@@ -322,6 +322,112 @@ def scrape_batch_endpoint():
         }), 500
 
 
+@app.route('/test/send-static', methods=['POST'])
+def send_static_test_endpoint():
+    """Test endpoint that sends static JSON data to queue without accessing infoleg"""
+    try:
+        logger.info("Received request to send static test data to queue")
+        
+        # Static test data based on the provided JSON
+        test_norma_data = {
+            "id": 183532,
+            "jurisdiccion": "Nacional",
+            "claseNorma": " ",
+            "tipoNorma": "Decreto",
+            "sancion": "1869-05-19",
+            "idNormas": [
+                {
+                    "numero": "S/N",
+                    "dependencia": "PODER EJECUTIVO NACIONAL (P.E.N.)",
+                    "ramaDigesto": ""
+                }
+            ],
+            "tituloSumario": "SIMBOLOS PATRIOS",
+            "tituloResumido": "BANDERA",
+            "observaciones": "PUBLICADA EN RN - 1869 - PAGINA 468\r\nEL PRESENTE TEXTO CONSERVA LA REDACCION ORIGEN DEL DECRETO",
+            "nroBoletin": "0",
+            "pagBoletin": "0",
+            "textoResumido": "SE PROHIBE IZAR BANDERAS EXTRANJERAS EN LOS DIAS DE REGOCIJO NACIONAL",
+            "textoNorma": "<B><P ALIGN='JUSTIFY'>Prohibiendo izar banderas estrangeras en los d&iacute;as de regocijo Nacional.</P> </B><P ALIGN='JUSTIFY'>Departamento del Interior</P> <P ALIGN='JUSTIFY'>Buenos Aires, Mayo 19 de 1869.</P> <P ALIGN='JUSTIFY'>Acerc&aacute;ndose un aniversario memorable para los Argentinos; y considerando: </P> <P ALIGN='JUSTIFY'>1° Que ha desaparecido el abuso que se notaba de izar banderas estrangeras en casas particulares en los dias de regocijo Nacional.</P> <P ALIGN='JUSTIFY'>2° Que no solo es uso comun a todos los pueblos, el que sus habitantes de cualquier nacional que sea, levanten en conmemoraciones civicas la bandera que las simboliza, como un testimonio de respeto, y de la parte que los hospeda, y por &uacute;ltimo</P> <P ALIGN='JUSTIFY'>Que esta pr&aacute;ctica es un tributo &aacute; la patria y &aacute; las tradiciones de su gloria.</P> <P ALIGN='JUSTIFY'>El Presidente de la Rep&uacute;blica </P> <I><P ALIGN='JUSTIFY'>Ha acordado y decreta: </P> </I><P ALIGN='JUSTIFY'>Art. 1ª La bandera Argentina, ser&aacute; izada en todos los edificios p&uacute;blicos, y podr&aacute; serlo en las casas de los particulares en dias de conmemoracion patri&oacute;tica, siendo el derecho &aacute; esta demostracion civica estensivo &aacute; los estrangeros que &aacute; ella quisieron asociarse.</P> <P ALIGN='JUSTIFY'>Art. 2ª Se prohibe enarbolar en tierra las banderas de otros Estados, escepto en las casas de sus Agentes Diplom&aacute;ticos y de sus C&oacute;nsules.</P> <P ALIGN='JUSTIFY'>Art. 3ª En los ornatos de la fachadas, y de los salones preparados para algun festejo p&uacute;blico, podr&aacute;n usarse indistintamente todas las banderas, debiendo la de la Rep&uacute;blica Argentina ocupar el centro, &oacute; las partes mas altas de esos pabellones.</P> <P ALIGN='JUSTIFY'>Art. 4ª En el r&iacute;o y su rada se usar&aacute;n las banderas seg&uacute;n la pr&aacute;ctica admitida en todas las Naciones.</P> <P ALIGN='JUSTIFY'>Art 5ª Comuniquese esta decreto &aacute; los Gobernadores de las Provincias y Ministerio de Guerra y Marina, &eacute; ins&eacute;rtese en el Registro Nacional. — <I>SARMIENTO. — M. Varela</I>.</P>",
+            "textoNormaAct": "<B><P ALIGN='JUSTIFY'>Prohibiendo izar banderas estrangeras en los d&iacute;as de regocijo Nacional.</P> </B><P ALIGN='JUSTIFY'>Departamento del Interior</P> <P ALIGN='JUSTIFY'>Buenos Aires, Mayo 19 de 1869.</P> <P ALIGN='JUSTIFY'>Acerc&aacute;ndose un aniversario memorable para los Argentinos; y considerando: </P> <P ALIGN='JUSTIFY'>1° Que ha desaparecido el abuso que se notaba de izar banderas estrangeras en casas particulares en los dias de regocijo Nacional.</P> <P ALIGN='JUSTIFY'>2° Que no solo es uso comun a todos los pueblos, el que sus habitantes de cualquier nacional que sea, levanten en conmemoraciones civicas la bandera que las simboliza, como un testimonio de respeto, y de la parte que los hospeda, y por &uacute;ltimo</P> <P ALIGN='JUSTIFY'>Que esta pr&aacute;ctica es un tributo &aacute; la patria y &aacute; las tradiciones de su gloria.</P> <P ALIGN='JUSTIFY'>El Presidente de la Rep&uacute;blica </P> <I><P ALIGN='JUSTIFY'>Ha acordado y decreta: </P> </I><P ALIGN='JUSTIFY'>Art. 1ª La Bandera Nacional Argentina deber&aacute; permanecer enarbolada de forma permanente en todos los edificios p&uacute;blicos.</P> <P ALIGN='JUSTIFY'>Dicha obligaci&oacute;n ser&aacute; extensiva a todos los puestos de acceso y egreso del Estado argentino y a las empresas de servicios p&uacute;blicos identificadas como nacionales, sin importar la procedencia de sus capitales, de conformidad con lo previsto en la Ley Nº 25.173.</P> <I><P ALIGN='JUSTIFY'>(Art&iacute;culo sustituido por art. 1° del </I><A  target='_blank' href='%%server_name%%/api/v2.0/nacionales/normativos?id=183499'><I>Decreto N° 824/2011</I></A><I> B.O. 21/6/2011. Vigencia: el d&iacute;a de su publicaci&oacute;n en el Bolet&iacute;n Oficial)</P> </I><P ALIGN='JUSTIFY'>Art. 2ª Se prohibe enarbolar en tierra las banderas de otros Estados, escepto en las casas de sus Agentes Diplom&aacute;ticos y de sus C&oacute;nsules.</P> <P ALIGN='JUSTIFY'>Art. 3ª En los ornatos de la fachadas, y de los salones preparados para algun festejo p&uacute;blico, podr&aacute;n usarse indistintamente todas las banderas, debiendo la de la Rep&uacute;blica Argentina ocupar el centro, &oacute; las partes mas altas de esos pabellones.</P> <P ALIGN='JUSTIFY'>Art. 4ª En el r&iacute;o y su rada se usar&aacute;n las banderas seg&uacute;n la pr&aacute;ctica admitida en todas las Naciones.</P> <P ALIGN='JUSTIFY'>Art 5ª Comuniquese esta decreto &aacute; los Gobernadores de las Provincias y Ministerio de Guerra y Marina, &eacute; ins&eacute;rtese en el Registro Nacional. — <I>SARMIENTO. — M. Varela</I>.</P>",
+            "estado": "",
+            "listaNormasQueComplementa": [],
+            "listaNormasQueLaComplementan": [59311, 183499]
+        }
+        
+        # Map the JSON structure to InfolegNorma format
+        mapped_norma_data = {
+            "infoleg_id": test_norma_data["id"],
+            "jurisdiccion": test_norma_data["jurisdiccion"],
+            "clase_norma": test_norma_data["claseNorma"],
+            "tipo_norma": test_norma_data["tipoNorma"],
+            "sancion": datetime.fromisoformat(test_norma_data["sancion"]).date(),
+            "id_normas": test_norma_data["idNormas"],
+            "publicacion": None,  # Not provided in test data
+            "titulo_sumario": test_norma_data["tituloSumario"],
+            "titulo_resumido": test_norma_data["tituloResumido"],
+            "observaciones": test_norma_data["observaciones"],
+            "nro_boletin": test_norma_data["nroBoletin"],
+            "pag_boletin": test_norma_data["pagBoletin"],
+            "texto_resumido": test_norma_data["textoResumido"],
+            "texto_norma": test_norma_data["textoNorma"],
+            "texto_norma_actualizado": test_norma_data["textoNormaAct"],
+            "estado": test_norma_data["estado"],
+            "lista_normas_que_complementa": test_norma_data["listaNormasQueComplementa"],
+            "lista_normas_que_la_complementan": test_norma_data["listaNormasQueLaComplementan"],
+            "purified_texto_norma": None,
+            "purified_texto_norma_actualizado": None,
+            "structured_texto_norma": None,
+            "structured_texto_norma_actualizado": None
+        }
+        
+        # Create InfolegNorma object
+        norma = InfolegNorma(**mapped_norma_data)
+        
+        # Create ScrapedData
+        scraped_data = ScrapedData(
+            norma=norma,
+            api_url=f"TEST_ENDPOINT_STATIC_DATA",
+            metadata={
+                "scraper_version": "1.1",
+                "scrape_mode": "static_test",
+                "api_source": "test_endpoint",
+                "has_full_text": bool(norma.texto_norma),
+                "has_updated_text": bool(norma.texto_norma_actualizado),
+                "note": "Static test data - not from infoleg API"
+            },
+            timestamp=datetime.now().isoformat(),
+        )
+        
+        # Send to queue
+        queue_client = RabbitMQClient()
+        success = queue_client.send_message('processing', scraped_data.to_dict())
+        
+        if success:
+            logger.info(f"Successfully sent static test data for norma {norma.infoleg_id} to queue")
+            return jsonify({
+                'status': 'success',
+                'message': f'Successfully sent static test data for norma {norma.infoleg_id} to processing queue',
+                'norma_id': norma.infoleg_id,
+                'norma_title': norma.titulo_sumario,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            logger.error(f"Failed to send static test data for norma {norma.infoleg_id}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to send static test data to queue',
+                'norma_id': norma.infoleg_id
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error in static test endpoint: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
 def run_scheduler():
     """Run the background scheduler in a separate thread"""
     logger.info("Background scheduler started")

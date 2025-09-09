@@ -122,19 +122,19 @@ services:
     networks:
       - rag-network
 
-  frontend:
-    build: ./05-frontend-app
-    container_name: frontend
-    ports:
-      - "5173:5173"
-    env_file:
-      - ./05-frontend-app/.env
-    depends_on:
-      api:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - rag-network
+  # frontend:
+  #   build: ./05-frontend-app
+  #   container_name: frontend
+  #   ports:
+  #     - "5173:5173"
+  #   env_file:
+  #     - ./05-frontend-app/.env
+  #   depends_on:
+  #     api:
+  #       condition: service_started
+  #   restart: unless-stopped
+  #   networks:
+  #     - rag-network
 
 volumes:
   rabbitmq-data:
