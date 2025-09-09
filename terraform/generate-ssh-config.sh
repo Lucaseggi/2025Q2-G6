@@ -27,7 +27,7 @@ BASTION_KEY="~/.ssh/master-key.pem"
 } >> "$SSH_CONFIG"
 
 # List of instance hostnames (atado con alambres)
-INSTANCES=("scrapper-ms" "processing-ms" "embedding-ms" "inserter-ms" "queue" "vector-db")
+INSTANCES=("scraper-ms" "processor-ms" "embedder-ms" "inserter-ms" "queue" "vector-db")
 
 # Loop through instances to generate config
 for instance in "${INSTANCES[@]}"; do

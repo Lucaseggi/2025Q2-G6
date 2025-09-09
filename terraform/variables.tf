@@ -80,9 +80,9 @@ variable "priv_sg_name" {}
 variable "vdb_sg_name" {}
 
 variable "api_rest_name" {}
-variable "scrapper_ms_name" {}
-variable "processing_ms_name" {}
-variable "embedding_ms_name" {}
+variable "scraper_ms_name" {}
+variable "processor_ms_name" {}
+variable "embedder_ms_name" {}
 variable "inserter_ms_name" {}
 variable "queue_name" {}
 variable "vdb_name" {}
