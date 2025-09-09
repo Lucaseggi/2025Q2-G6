@@ -8,6 +8,15 @@ RABBITMQ_HOST=$(terraform output -raw queue_private_ip)
 OPENSEARCH_IP=$(terraform output -raw vector_db_private_ip)
 EMBEDDER_IP=$(terraform output -raw embedder_ms_private_ip)
 
+ORDERED_INSTANCES=(
+  "queue"
+  "embedder-ms"
+  "scraper-ms"
+  "processor-ms"
+  "vector-db"
+  "inserter-ms"
+  "bastion"
+)
 # Define docker build + run commands per host
 declare -A COMMANDS=(
   # Queue (RabbitMQ)
@@ -101,7 +110,7 @@ declare -A COMMANDS=(
 )
 
 # Deploy to each instance
-for instance in "${!COMMANDS[@]}"; do
+for instance in "${ORDERED_INSTANCES[@]}"; do
   echo "🚀 Deploying containers on $instance ..."
   ssh -F "$SSH_CONFIG" "$instance" "cd /home/ec2-user && ${COMMANDS[$instance]}"
 done
