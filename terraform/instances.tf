@@ -1,13 +1,3 @@
-data "aws_ami" "amazon_linux" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-  }
-}
-
 data "aws_ami" "ecs" {
   most_recent = true
   owners      = ["amazon"]
@@ -41,7 +31,7 @@ resource "aws_instance" "api-rest" {
   }
 }
 
-resource "aws_instance" "scrapper-ms" {
+resource "aws_instance" "scraper-ms" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = var.default_instance_type
   subnet_id                   = aws_subnet.private1.id
@@ -50,11 +40,11 @@ resource "aws_instance" "scrapper-ms" {
   key_name                    = aws_key_pair.master-key.key_name
 
   tags = {
-    Name = var.scrapper_ms_name
+    Name = var.scraper_ms_name
   }
 }
 
-resource "aws_instance" "processing-ms" {
+resource "aws_instance" "processor-ms" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = var.default_instance_type
   subnet_id                   = aws_subnet.private1.id
@@ -63,11 +53,11 @@ resource "aws_instance" "processing-ms" {
   key_name                    = aws_key_pair.master-key.key_name
 
   tags = {
-    Name = var.processing_ms_name
+    Name = var.processor_ms_name
   }
 }
 
-resource "aws_instance" "embedding-ms" {
+resource "aws_instance" "embedder-ms" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = var.default_instance_type
   subnet_id                   = aws_subnet.private1.id
@@ -76,7 +66,7 @@ resource "aws_instance" "embedding-ms" {
   key_name                    = aws_key_pair.master-key.key_name
 
   tags = {
-    Name = var.embedding_ms_name
+    Name = var.embedder_ms_name
   }
 }
 
@@ -108,7 +98,7 @@ resource "aws_instance" "queue" {
 
 resource "aws_instance" "vector-db" {
   ami                         = data.aws_ami.ecs.id
-  instance_type               = var.default_instance_type
+  instance_type               = "t3.medium"
   subnet_id                   = aws_subnet.private2.id
   security_groups             = [aws_security_group.vdb_sg.id]
   associate_public_ip_address = false

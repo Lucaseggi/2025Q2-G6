@@ -17,4 +17,8 @@ echo "[INFO] Generating SSH config..."
 echo "[INFO] Copying files to instances..."
 ./copy-files.sh
 
+# 5. Start docker instances
+echo "[INFO] Initializing docker instances..."
+./instance-docker.sh
+
 echo "[INFO] All done!"

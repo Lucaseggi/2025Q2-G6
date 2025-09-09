@@ -8,9 +8,9 @@ declare -A FOLDERS=(
   ["bastion"]="../api"
   ["vector-db"]="../opensearch-db"
   ["queue"]="../00-rabbitmq"
-  ["scrapper-ms"]="../01-scraper"
-  ["processing-ms"]="../02-processor"
-  ["embedding-ms"]="../03-embedder"
+  ["scraper-ms"]="../01-scraper"
+  ["processor-ms"]="../02-processor"
+  ["embedder-ms"]="../03-embedder"
   ["inserter-ms"]="../04-inserter"
 )
 

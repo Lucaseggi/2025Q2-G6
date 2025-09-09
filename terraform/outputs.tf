@@ -1,7 +1,3 @@
-output "bucket_name" {
-  value = aws_s3_bucket.dumps.bucket
-}
-
 output "master_private_key_pem" {
   value     = tls_private_key.master-tls-key.private_key_pem
   sensitive = true
@@ -15,16 +11,16 @@ output "api_rest_private_ip" {
   value = aws_instance.api-rest.private_ip
 }
 
-output "scrapper_ms_private_ip" {
-  value = aws_instance.scrapper-ms.private_ip
+output "scraper_ms_private_ip" {
+  value = aws_instance.scraper-ms.private_ip
 }
 
-output "processing_ms_private_ip" {
-  value = aws_instance.processing-ms.private_ip
+output "processor_ms_private_ip" {
+  value = aws_instance.processor-ms.private_ip
 }
 
-output "embedding_ms_private_ip" {
-  value = aws_instance.embedding-ms.private_ip
+output "embedder_ms_private_ip" {
+  value = aws_instance.embedder-ms.private_ip
 }
 
 output "inserter_ms_private_ip" {

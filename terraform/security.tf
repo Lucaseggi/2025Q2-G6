@@ -20,6 +20,14 @@ resource "aws_security_group" "public_sg" {
   }
 
   ingress {
+    description = "Inbound API"
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
     description = "Allow ICMP (ping)"
     from_port   = -1
     to_port     = -1
@@ -69,6 +77,14 @@ resource "aws_security_group" "private_sg" {
     self            = true
   }
 
+  ingress {
+    description = "Inbound for embedder"
+    from_port   = 8001
+    to_port     = 8001
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     description = "All outbound"
     from_port   = 0
@@ -104,12 +120,13 @@ resource "aws_security_group" "vdb_sg" {
     security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
   }
 
-    ingress {
+  ingress {
     description = "OpenSearch"
     from_port   = 9200
     to_port     = 9200
     protocol    = "tcp"
     self        = true
+    security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
   }
 
   egress {
