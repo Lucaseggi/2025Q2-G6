@@ -2,7 +2,51 @@
 
 A microservices-based RAG (Retrieval-Augmented Generation) system for processing Argentine legal documents from InfoLEG.
 
-## Quick Start
+## Cloud Deploy
+
+### Prerequisites
+- **Terraform installed**: Download from [terraform.io](https://www.terraform.io/downloads)
+- **AWS credentials configured**: Set up `$HOME/.aws/credentials` with your access and secret keys:
+  ```
+  [default]
+  aws_access_key_id = your-access-key
+  aws_secret_access_key = your-secret-key
+  ```
+
+### Deploy to AWS
+```bash
+cd terraform
+terraform init
+chmod +x *.sh
+./run.sh
+```
+
+### Test the Deployment
+
+#### 1. Scrape a Document
+SSH into the scraper instance and trigger a scrape:
+```bash
+ssh -F ~/.ssh/terraform_config scraper-ms
+curl -X POST http://localhost:8003/scrape \
+  -H "Content-Type: application/json" \
+  -d '{"infoleg_id": 183532}'
+```
+
+#### 2. Query the RAG API
+Get the bastion host IP from your SSH config:
+```bash
+grep -A1 "Host bastion" ~/.ssh/terraform_config | grep HostName | awk '{print $2}'
+```
+
+Then query the API using the bastion IP:
+```bash
+BASTION_IP=$(grep -A1 "Host bastion" ~/.ssh/terraform_config | grep HostName | awk '{print $2}')
+curl -X POST http://$BASTION_IP:8000/api/questions/ \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Cuales son las regulaciones de la bandera argentina?"}'
+```
+
+## Local Run
 
 ### 1. Start the Services
 ```bash

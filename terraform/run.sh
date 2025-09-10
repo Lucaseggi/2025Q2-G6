@@ -6,8 +6,8 @@ terraform apply
 
 # 2. Save the private key from Terraform output into ~/.ssh
 echo "[INFO] Writing private key to ~/.ssh/master-key.pem..."
-terraform output -raw master_private_key_pem > ~/.ssh/master-key.pem
-chmod 600 ~/.ssh/master-key.pem
+terraform output -raw master_private_key_pem | sudo tee ~/.ssh/master-key.pem > /dev/null
+sudo chmod 400 ~/.ssh/master-key.pem
 
 # 3. Generate SSH config
 echo "[INFO] Generating SSH config..."

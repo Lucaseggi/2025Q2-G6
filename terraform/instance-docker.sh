@@ -10,10 +10,10 @@ EMBEDDER_IP=$(terraform output -raw embedder_ms_private_ip)
 
 ORDERED_INSTANCES=(
   "queue"
+  "vector-db"
   "embedder-ms"
   "scraper-ms"
   "processor-ms"
-  "vector-db"
   "inserter-ms"
   "bastion"
 )
@@ -31,6 +31,20 @@ declare -A COMMANDS=(
       -v rabbitmq-data:/var/lib/rabbitmq \
       -v rabbitmq-logs:/var/log/rabbitmq \
       rabbitmq-image
+  "
+  # OpenSearch (vector-db)
+  ["vector-db"]="
+    docker build -t opensearch-image ./opensearch-db &&
+    docker rm -f opensearch-node || true &&
+    docker run -d \
+      --name opensearch-node \
+      --env-file ./opensearch-db/.env \
+      --ulimit memlock=-1:-1 \
+      --ulimit nofile=65536:65536 \
+      -p 9200:9200 \
+      -p 9600:9600 \
+      -v opensearch-data:/usr/share/opensearch/data \
+      opensearch-image
   "
 
   # Embedder
@@ -68,23 +82,9 @@ declare -A COMMANDS=(
       processor-image
   "
 
-  # OpenSearch (vector-db)
-  ["vector-db"]="
-    docker build -t opensearch-image ./opensearch-db &&
-    docker rm -f opensearch-node || true &&
-    docker run -d \
-      --name opensearch-node \
-      --env-file ./opensearch-db/.env \
-      --ulimit memlock=-1:-1 \
-      --ulimit nofile=65536:65536 \
-      -p 9200:9200 \
-      -p 9600:9600 \
-      -v opensearch-data:/usr/share/opensearch/data \
-      opensearch-image
-  "
-
   # Inserter
   ["inserter-ms"]="
+    sleep 20
     docker build -t inserter-image ./04-inserter &&
     docker rm -f inserter || true &&
     docker run -d \
