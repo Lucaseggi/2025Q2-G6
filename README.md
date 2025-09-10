@@ -6,6 +6,7 @@ A microservices-based RAG (Retrieval-Augmented Generation) system for processing
 
 ### Prerequisites
 - **Terraform installed**: Download from [terraform.io](https://www.terraform.io/downloads)
+- **AWS CLI installed**: Follow the installation for your OS following [these instructions](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - **AWS credentials configured**: Set up `$HOME/.aws/credentials` with your access and secret keys:
   ```
   [default]
@@ -19,6 +20,17 @@ cd terraform
 terraform init
 chmod +x *.sh
 ./run.sh
+cd ../05-frontend-app
+npm run build
+BUCKET_NAME=$(cd ../terraform && terraform output -raw frontend_bucket_name)
+aws s3 sync ./dist/ s3://$BUCKET_NAME --delete
+```
+
+#### Access the Frontend
+After deployment, get the frontend URL:
+```bash
+cd terraform
+terraform output frontend_website_url
 ```
 
 ### Test the Deployment
