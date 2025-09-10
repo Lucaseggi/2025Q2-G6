@@ -29,6 +29,18 @@ resource "aws_instance" "api-rest" {
   tags = {
     Name = var.api_rest_name
   }
+
+  # Update frontend .env file with API IP and port
+  provisioner "local-exec" {
+    command = "echo VITE_API_URL=http://${self.public_ip}:8000 > ../05-frontend-app/.env"
+  }
+
+  # Update CORS settings in API with S3 bucket URL
+  provisioner "local-exec" {
+    command = "sed -i 's|http://proyecto-goblin-frontend-[^/]*\\.s3-website-[^/]*\\.amazonaws\\.com/|http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}/|g' ../api/simpla_api/settings.py"
+  }
+
+  depends_on = [aws_s3_bucket_website_configuration.frontend]
 }
 
 resource "aws_instance" "scraper-ms" {

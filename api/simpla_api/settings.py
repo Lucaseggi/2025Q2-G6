@@ -145,6 +145,7 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://proyecto-goblin-frontend-wjzoty5c.s3-website-us-east-1.amazonaws.com/"
 ]
 
 CORS_ALLOW_CREDENTIALS = True

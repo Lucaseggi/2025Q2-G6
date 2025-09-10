@@ -93,7 +93,6 @@ export default function MessageBubble({
               message="Error en la consulta"
               description={message.error}
               type="error"
-              size="small"
               icon={<ExclamationCircleOutlined />}
             />
           ) : message.role === 'agent' ? (
