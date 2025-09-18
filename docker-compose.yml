@@ -1,4 +1,26 @@
 services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"  # Main LocalStack port
+    environment:
+      - SERVICES=s3,ssm  # S3 for cache, SSM for secrets
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack-data:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - rag-network
+
   rabbitmq:
     build:
       context: ./00-rabbitmq
@@ -54,6 +76,8 @@ services:
     env_file:
       - ./01-scraper/.env
     depends_on:
+      localstack:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       opensearch:
@@ -137,6 +161,8 @@ services:
   #     - rag-network
 
 volumes:
+  localstack-data:
+    driver: local
   rabbitmq-data:
     driver: local
   rabbitmq-logs:

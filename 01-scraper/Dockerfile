@@ -16,4 +16,4 @@ RUN pip install --no-cache-dir -r requirements.txt -r shared_requirements.txt
 COPY 00-shared ./00-shared
 COPY . .
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8003", "--workers", "2", "main:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8003", "--workers", "2", "api:app"]
