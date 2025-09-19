@@ -69,12 +69,28 @@ GET /cache/list?limit=100
 
 ## Response Format
 
-**Success:**
+**Success (Fresh Scrape):**
 ```json
 {
   "status": "success",
-  "source": "cache|scraped",
+  "message": "Successfully scraped norm 183532",
   "infoleg_id": 183532,
+  "source": "scraped",
+  "cache_hit": false,
+  "forced": false,
+  "timestamp": "2024-01-01T10:00:00"
+}
+```
+
+**Success (Cache Hit):**
+```json
+{
+  "status": "cached",
+  "message": "Norm 183532 served from cache",
+  "infoleg_id": 183532,
+  "source": "cache",
+  "cache_hit": true,
+  "forced": false,
   "timestamp": "2024-01-01T10:00:00"
 }
 ```

@@ -9,4 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt -r shared_requirements.txt
 COPY 00-shared ./00-shared
 COPY . .
 
-CMD ["python", "processor.py"]
+CMD ["python", "main.py"]

@@ -70,26 +70,20 @@ def scrape_endpoint():
 
             logger.info(f"Received scrape request for norm ID: {infoleg_id} (force={force})")
 
-            # Check cache first if not forcing
-            if not force and scraper_service.is_cached(infoleg_id):
-                logger.info(f"Norm {infoleg_id} already cached (use force=true to override)")
-                return jsonify({
-                    'status': 'cached',
-                    'message': f'Norm {infoleg_id} already in cache (use force=true to override)',
-                    'infoleg_id': infoleg_id,
-                    'cached': True,
-                    'timestamp': datetime.now().isoformat()
-                })
-
-            # Scrape the norm
+            # Scrape the norm (service handles cache logic)
             success, source = scraper_service.scrape_specific_norma(infoleg_id, force=force)
 
             if success:
+                is_cache_hit = source == 'cache'
+                status = 'cached' if is_cache_hit else 'success'
+                message = f'Norm {infoleg_id} served from cache' if is_cache_hit else f'Successfully scraped norm {infoleg_id}'
+
                 return jsonify({
-                    'status': 'success',
-                    'message': f'Successfully scraped and queued norm {infoleg_id}',
+                    'status': status,
+                    'message': message,
                     'infoleg_id': infoleg_id,
                     'source': source,
+                    'cache_hit': is_cache_hit,
                     'forced': force,
                     'timestamp': datetime.now().isoformat()
                 })
