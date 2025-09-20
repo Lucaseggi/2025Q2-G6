@@ -2,6 +2,7 @@
 
 import logging
 import json
+import re
 import time
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
@@ -130,72 +131,22 @@ class LLMManager:
             self.logger.error(f"Quality control failed: {e}")
             return False, True, f"Quality control error: {str(e)}"
 
+    def _load_prompt(self, prompt_name: str) -> str:
+        """Helper method to load prompt from file"""
+        try:
+            with open(f'/app/prompts/{prompt_name}.txt', 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            logger.error(f"Failed to load {prompt_name} prompt: {e}")
+            raise Exception(f"Could not load {prompt_name} prompt: {e}")
+
     def get_quality_control_prompt(self) -> str:
         """Get prompt for quality control assessment"""
-        return """Eres un experto en control de calidad para documentos legales argentinos.
-
-INSTRUCCIÓN CRÍTICA: El sistema está diseñado para ELIMINAR encabezados de artículos. Si ves que se eliminó "ARTICULO 1. -", "Art. 2°", "el grupo mercado común resuelve:", etc., esto es CORRECTO y debes APROBAR.
-
-SIEMPRE APROBAR estos cambios (son el comportamiento esperado del sistema):
-- Eliminación de "ARTICULO X. -", "Art. X°", "ARTÍCULO X -"
-- Eliminación de frases estructurales como "el grupo mercado común resuelve:", "decreta:", "por ello:"
-- Correcciones OCR: "dapartamento" → "departamento", "exteriores" → "exteriores"
-- Normalización: "ó" → "o", espacios múltiples → espacio único
-- Limpieza de puntuación redundante
-
-SOLO RECHAZAR SI (casos muy graves):
-- Falta un artículo COMPLETO o párrafo ENTERO del original
-- Se agregó contenido que NO existe en el original
-- Se cambió nombre de funcionario, fecha específica, o número de ley
-
-REGLA DE ORO: Si el texto procesado contiene todo el contenido sustancial del original, APROBAR siempre, sin importar cambios estructurales.
-
-RESPUESTA ESTÁNDAR (usar en 95% de casos):
-{"quality_passed": true, "human_intervention_required": false, "reason": "procesamiento estructural correcto"}
-
-RESPUESTA DE RECHAZO (solo para casos graves):
-{"quality_passed": false, "human_intervention_required": true, "reason": "contenido faltante significativo"}"""
+        return self._load_prompt('quality_control_prompt')
 
     def get_system_prompt(self) -> str:
         """Get the system prompt for norm structuring"""
-        return """
-Eres un experto en análisis de documentos legales argentinos. Tu tarea es transformar normas legales (leyes, decretos, resoluciones) en un objeto JSON con la siguiente estructura:
-
-ESTRUCTURA JSON:
-{
-  "preamble": "Texto completo de la sección inicial (ministerio, decreto número, título, fecha, expediente), hasta el inicio de los artículos",
-  "articles": [
-    {
-      "number": "Número del artículo (como entero en secuencia corregida)",
-      "body": "Contenido del artículo sin incluir la palabra 'Artículo' ni el número"
-    }
-  ],
-  "postamble": "Texto posterior a los artículos (disposiciones transitorias, anexos, cierres)",
-  "short_document": "Texto completo cuando el documento no contiene secciones de preámbulo, artículos ni conclusiones, sino solo un cuerpo principal breve",
-  "firms": "Firmas y nombres de funcionarios al final del documento",
-  "references": [
-    {
-      "documentType": "Tipo de norma referenciada (ej: LEY, DECRETO, RESOLUCIÓN)",
-      "number": "Número de la norma referenciada",
-      "articles": [
-        {
-          "number": "Número del artículo referido",
-          "body": "Texto del artículo si aparece citado"
-        }
-      ]
-    }
-  ]
-}
-
-INSTRUCCIONES:
-1. **Corrección OCR**: Corrige errores de ortografía, puntuación y numeración producidos por digitalización.
-2. **Numeración de artículos**: Si hay errores en la secuencia (ej: 1,1,3,4), corrige para que quede consecutiva (1,2,3,4). No alteres la numeración cuando se cite otra norma.
-3. **Mantén el contenido original**: No elimines información, solo corrige errores obvios de digitalización.
-4. **Campos vacíos**: Si una sección no existe, coloca string vacío "" (no null, no omitir el campo).
-5. **Texto completo**: Todo el contenido debe quedar representado en los campos adecuados.
-6. **Formato de salida**: Devuelve exclusivamente el JSON válido, sin texto adicional ni explicaciones.
-
-"""
+        return self._load_prompt('system_prompt') 
 
     def _call_gemini_with_retries_sync(self, model_name: str, text: str, system_prompt: str) -> ProcessingResult:
         """Call Gemini API with retries synchronously"""

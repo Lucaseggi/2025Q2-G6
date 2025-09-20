@@ -9,4 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt -r shared_requirements.txt
 COPY 00-shared ./00-shared
 COPY . .
 
+EXPOSE 8004
+
 CMD ["python", "main.py"]

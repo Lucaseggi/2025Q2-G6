@@ -3,8 +3,10 @@
 import logging
 import sys
 import time
+import json
 from datetime import datetime
 from typing import Dict, Any, Optional
+import os
 
 sys.path.append('/app/00-shared')
 from rabbitmq_client import RabbitMQClient
@@ -13,6 +15,7 @@ from models import ScrapedData, ProcessedData, InfolegNorma
 from text_processor import TextProcessor
 from llm_manager import LLMManager, ProcessingResult
 from config import ProcessingConfig
+from s3_cache import ProcessorS3Cache
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,6 +30,12 @@ class DocumentProcessor:
         self.llm_manager = LLMManager(self.config)
         self.queue_client = RabbitMQClient()
 
+        # Initialize S3 cache
+        self.cache = ProcessorS3Cache(
+            bucket_name=os.getenv('PROCESSOR_S3_BUCKET', 'processor-cache'),
+            endpoint_url=os.getenv('S3_ENDPOINT_URL')
+        )
+
         # Processing statistics
         self.stats = {
             'total_processed': 0,
@@ -37,53 +46,55 @@ class DocumentProcessor:
             'queue_failures': 0,
         }
 
+    def _purify_text_field(self, text: Optional[str], field_name: str, infoleg_id: int) -> Optional[str]:
+        """Helper method to purify a single text field"""
+        if not text or not text.strip():
+            return None
+
+        purified = self.text_processor.convert_html_to_structured_text(text)
+        return purified if purified and purified.strip() else None
+
+    def _log_processing_result(self, norma_id: int, success: bool, llm_results: Dict[str, Any] = None, failure_reason: str = None):
+        """Log focused processing result with LLM response"""
+        if success:
+            logger.info(f"✓ SUCCESS: Norm {norma_id}")
+            for field_name, result in llm_results.items():
+                logger.info(f"  [{field_name}] Model: {result.get('model_used', 'unknown')}")
+                logger.info(f"  [{field_name}] LLM Response: {json.dumps(result.get('structured_data', {}), indent=2, ensure_ascii=False)}")
+        else:
+            logger.error(f"✗ FAILURE: Norm {norma_id} - {failure_reason}")
+            if llm_results:
+                for field_name, result in llm_results.items():
+                    # Handle both result objects and dicts
+                    if hasattr(result, 'structured_data'):
+                        logger.error(f"  [{field_name}] LLM Response: {json.dumps(result.structured_data, indent=2, ensure_ascii=False)}")
+                    elif hasattr(result, 'raw_response'):
+                        logger.error(f"  [{field_name}] LLM Raw Response: {result.raw_response}")
+                    elif isinstance(result, dict) and 'structured_data' in result:
+                        logger.error(f"  [{field_name}] LLM Response: {json.dumps(result['structured_data'], indent=2, ensure_ascii=False)}")
+
     def process_norma(self, scraped_data: ScrapedData) -> Optional[ProcessedData]:
         """Process a single norma through purification and LLM parsing"""
         try:
             norma = scraped_data.norma
             self.stats['total_processed'] += 1
-            logger.info(
-                f"Processing norma {norma.infoleg_id}: {norma.titulo_sumario[:50]}..."
-            )
 
             # Step 1: Text purification - process both fields individually
-            purified_texto_norma = None
+            purified_texto_norma = self._purify_text_field(
+                norma.texto_norma, "texto_norma", norma.infoleg_id
+            )
+
+            # Process texto_norma_actualizado if exists and different from main text
             purified_texto_actualizado = None
-
-            # Process texto_norma if exists
-            if norma.texto_norma and norma.texto_norma.strip():
-                logger.info(f"Purifying texto_norma for norma {norma.infoleg_id}")
-                purified_texto_norma = (
-                    self.text_processor.convert_html_to_structured_text(
-                        norma.texto_norma
-                    )
+            if (norma.texto_norma_actualizado and norma.texto_norma_actualizado.strip() and
+                (not norma.texto_norma or norma.texto_norma_actualizado.strip() != norma.texto_norma.strip())):
+                purified_texto_actualizado = self._purify_text_field(
+                    norma.texto_norma_actualizado, "texto_norma_actualizado", norma.infoleg_id
                 )
-                if not purified_texto_norma.strip():
-                    purified_texto_norma = None
-
-            # Process texto_norma_actualizado if exists and different
-            if norma.texto_norma_actualizado and norma.texto_norma_actualizado.strip():
-                if (
-                    not norma.texto_norma
-                    or norma.texto_norma_actualizado.strip()
-                    != norma.texto_norma.strip()
-                ):
-                    logger.info(
-                        f"Purifying texto_norma_actualizado for norma {norma.infoleg_id}"
-                    )
-                    purified_texto_actualizado = (
-                        self.text_processor.convert_html_to_structured_text(
-                            norma.texto_norma_actualizado
-                        )
-                    )
-                    if not purified_texto_actualizado.strip():
-                        purified_texto_actualizado = None
 
             # Check if we have any content to process
             if not purified_texto_norma and not purified_texto_actualizado:
-                logger.warning(
-                    f"No content after purification for norma {norma.infoleg_id}"
-                )
+                self._log_processing_result(norma.infoleg_id, False, None, "No content after purification")
                 return None
 
             # Step 2: LLM processing for structuring - process each field separately
@@ -91,115 +102,71 @@ class DocumentProcessor:
 
             # Process texto_norma if available
             if purified_texto_norma:
-                logger.info(
-                    f"Processing texto_norma with LLM for norma {norma.infoleg_id}"
-                )
-                result = self.llm_manager.process_text_with_escalation(
-                    purified_texto_norma
-                )
+                result = self.llm_manager.process_text_with_escalation(purified_texto_norma)
                 if result.success:
                     # Check for critical failures that should drop the norm
                     if not result.json_validation_passed:
                         self.stats['dropped_json_validation'] += 1
-                        logger.error(
-                            f"DROPPING NORM {norma.infoleg_id}: JSON validation failed for texto_norma after all model attempts"
-                        )
-                        logger.error(
-                            f"JSON validation error: {result.json_validation_error}"
-                        )
-                        logger.error(f"Models attempted: {result.models_used}")
+                        self._log_processing_result(norma.infoleg_id, False,
+                                                  {'texto_norma': result},
+                                                  f"JSON validation failed - {result.json_validation_error}")
                         return None
 
                     # THIS WILL PUSH INTO HUMAN INTERENTION QUEUE IN THE NEAR FUTURE
                     if result.human_intervention_required:
                         self.stats['dropped_human_intervention'] += 1
-                        logger.error(
-                            f"DROPPING NORM {norma.infoleg_id}: Human intervention required for texto_norma - complexity too high"
-                        )
-                        logger.error(
-                            f"Quality control reason: {result.content_diff[:200]}..."
-                        )
-                        logger.error(f"Models attempted: {result.models_used}")
+                        self._log_processing_result(norma.infoleg_id, False,
+                                                  {'texto_norma': result},
+                                                  f"Human intervention required - quality control failed")
                         return None
 
                     # Success - store results
                     llm_results['texto_norma'] = {
                         'structured_data': result.structured_data,
-                        'similarity_score': result.text_similarity_score,
-                        'content_diff': result.content_diff,
-                        'quality_control_passed': result.quality_control_passed,
-                        'human_intervention_required': result.human_intervention_required,
-                        'json_validation_passed': result.json_validation_passed,
-                        'json_validation_error': result.json_validation_error,
                         'model_used': result.model_used,
                         'models_used': result.models_used,
+                        'similarity_score': result.text_similarity_score,
                         'processing_time': result.processing_time,
                         'tokens_used': result.tokens_used,
                     }
-                    logger.info(
-                        f"Successfully processed texto_norma for {norma.infoleg_id} with {result.model_used}"
-                    )
                 else:
                     self.stats['dropped_other_failures'] += 1
-                    logger.error(
-                        f"DROPPING NORM {norma.infoleg_id}: LLM processing completely failed for texto_norma: {result.error_message}"
-                    )
+                    self._log_processing_result(norma.infoleg_id, False, None,
+                                              f"LLM processing failed - {result.error_message}")
                     return None
 
             # Process texto_norma_actualizado if available
             if purified_texto_actualizado:
-                logger.info(
-                    f"Processing texto_norma_actualizado with LLM for norma {norma.infoleg_id}"
-                )
-                result = self.llm_manager.process_text_with_escalation(
-                    purified_texto_actualizado
-                )
+                result = self.llm_manager.process_text_with_escalation(purified_texto_actualizado)
                 if result.success:
                     # Check for critical failures that should drop the norm
                     if not result.json_validation_passed:
                         self.stats['dropped_json_validation'] += 1
-                        logger.error(
-                            f"DROPPING NORM {norma.infoleg_id}: JSON validation failed for texto_norma_actualizado after all model attempts"
-                        )
-                        logger.error(
-                            f"JSON validation error: {result.json_validation_error}"
-                        )
-                        logger.error(f"Models attempted: {result.models_used}")
+                        self._log_processing_result(norma.infoleg_id, False,
+                                                  {'texto_norma_actualizado': result},
+                                                  f"JSON validation failed - {result.json_validation_error}")
                         return None
 
                     if result.human_intervention_required:
                         self.stats['dropped_human_intervention'] += 1
-                        logger.error(
-                            f"DROPPING NORM {norma.infoleg_id}: Human intervention required for texto_norma_actualizado - complexity too high"
-                        )
-                        logger.error(
-                            f"Quality control reason: {result.content_diff[:200]}..."
-                        )
-                        logger.error(f"Models attempted: {result.models_used}")
+                        self._log_processing_result(norma.infoleg_id, False,
+                                                  {'texto_norma_actualizado': result},
+                                                  f"Human intervention required - quality control failed")
                         return None
 
                     # Success - store results
                     llm_results['texto_norma_actualizado'] = {
                         'structured_data': result.structured_data,
-                        'similarity_score': result.text_similarity_score,
-                        'content_diff': result.content_diff,
-                        'quality_control_passed': result.quality_control_passed,
-                        'human_intervention_required': result.human_intervention_required,
-                        'json_validation_passed': result.json_validation_passed,
-                        'json_validation_error': result.json_validation_error,
                         'model_used': result.model_used,
                         'models_used': result.models_used,
+                        'similarity_score': result.text_similarity_score,
                         'processing_time': result.processing_time,
                         'tokens_used': result.tokens_used,
                     }
-                    logger.info(
-                        f"Successfully processed texto_norma_actualizado for {norma.infoleg_id} with {result.model_used}"
-                    )
                 else:
                     self.stats['dropped_other_failures'] += 1
-                    logger.error(
-                        f"DROPPING NORM {norma.infoleg_id}: LLM processing completely failed for texto_norma_actualizado: {result.error_message}"
-                    )
+                    self._log_processing_result(norma.infoleg_id, False, None,
+                                              f"LLM processing failed - {result.error_message}")
                     return None
 
             # Check if we have any successful LLM results
@@ -243,19 +210,19 @@ class DocumentProcessor:
             )
 
             self.stats['successful'] += 1
-            logger.info(f"✓ SUCCESSFULLY PROCESSED NORM {norma.infoleg_id}")
-            logger.info(f"  ├─ Fields processed: {processed_fields}")
-            logger.info(f"  ├─ Models used: {unique_models}")
-            logger.info(
-                f"  ├─ Human intervention required: {human_intervention_required}"
-            )
+            self._log_processing_result(norma.infoleg_id, True, llm_results)
+
+            # Cache the processed data
+            try:
+                self.cache.cache_processed_data(norma.infoleg_id, processed_data.to_dict())
+            except Exception as e:
+                logger.error(f"Cache error for norm {norma.infoleg_id}: {e}")
 
             return processed_data
 
         except Exception as e:
-            logger.error(f"Error processing norma {norma.infoleg_id}: {str(e)}")
+            self._log_processing_result(norma.infoleg_id, False, None, f"Processing exception - {str(e)}")
             return None
-
 
     def log_statistics(self):
         """Log current processing statistics"""
@@ -295,8 +262,6 @@ class DocumentProcessor:
                 message = self.queue_client.receive_message('processing', timeout=20)
 
                 if message:
-                    logger.info("Received scraped data for processing")
-
                     # Parse scraped data
                     scraped_data = ScrapedData.from_dict(message)
 
@@ -305,30 +270,10 @@ class DocumentProcessor:
 
                     if processed_data:
                         # Send to embedding queue
-                        success = self.queue_client.send_message(
-                            'embedding', processed_data.to_dict()
-                        )
-                        if success:
-                            logger.info(
-                                f"✓ QUEUED FOR EMBEDDING: Norma {processed_data.norma.infoleg_id} sent to embedding queue"
-                            )
-                        else:
+                        success = self.queue_client.send_message('embedding', processed_data.to_dict())
+                        if not success:
                             self.stats['queue_failures'] += 1
-                            logger.error(
-                                f"✗ QUEUE FAILURE: Failed to send processed norma {processed_data.norma.infoleg_id} to embedding queue"
-                            )
-                    else:
-                        # Norm was dropped due to processing failures
-                        norma_data = ScrapedData.from_dict(message)
-                        logger.error(
-                            f"✗ NORM DROPPED: Failed to process norma {norma_data.norma.infoleg_id}"
-                        )
-                        logger.error(
-                            f"  └─ Reason: JSON validation failure or human intervention required"
-                        )
-                        logger.error(
-                            f"  └─ This norm requires specialized handling or manual review"
-                        )
+                            logger.error(f"Queue failure: Could not send norm {processed_data.norma.infoleg_id} to embedding queue")
 
                 # Log statistics every 5 minutes or after every 10 norms
                 current_time = time.time()
@@ -345,8 +290,63 @@ class DocumentProcessor:
 
 
 def main():
+    """Main entry point - runs both queue processor and API server"""
+    import threading
+    from api import app
+
+    # Initialize processor
     processor = DocumentProcessor()
-    processor.run()
+
+    # Start queue processing in a separate thread
+    processor_thread = threading.Thread(
+        target=processor.run,
+        name="QueueProcessor",
+        daemon=True
+    )
+
+    # Start API server in a separate thread
+    api_thread = threading.Thread(
+        target=lambda: app.run(host='0.0.0.0', port=8004, debug=False),
+        name="APIServer",
+        daemon=True
+    )
+
+    logger.info("Starting processor service with both queue listener and API server...")
+
+    # Start both threads
+    processor_thread.start()
+    api_thread.start()
+
+    logger.info("Queue processor thread started")
+    logger.info("API server thread started on port 8004")
+
+    try:
+        # Keep main thread alive
+        while True:
+            processor_thread.join(timeout=1.0)
+            api_thread.join(timeout=1.0)
+
+            # Check if threads are still alive
+            if not processor_thread.is_alive():
+                logger.error("Queue processor thread died, restarting...")
+                processor_thread = threading.Thread(
+                    target=processor.run,
+                    name="QueueProcessor",
+                    daemon=True
+                )
+                processor_thread.start()
+
+            if not api_thread.is_alive():
+                logger.error("API server thread died, restarting...")
+                api_thread = threading.Thread(
+                    target=lambda: app.run(host='0.0.0.0', port=8004, debug=False),
+                    name="APIServer",
+                    daemon=True
+                )
+                api_thread.start()
+
+    except KeyboardInterrupt:
+        logger.info("Shutting down processor service...")
 
 
 if __name__ == "__main__":

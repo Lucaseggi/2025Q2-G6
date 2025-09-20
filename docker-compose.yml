@@ -7,10 +7,10 @@ services:
     environment:
       - SERVICES=s3,ssm  # S3 for cache, SSM for secrets
       - DEBUG=1
-      - DATA_DIR=/tmp/localstack/data
+      - DATA_DIR=/var/lib/localstack
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
-      - localstack-data:/tmp/localstack
+      - localstack-data:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]

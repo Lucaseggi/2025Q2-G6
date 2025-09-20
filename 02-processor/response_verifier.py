@@ -156,49 +156,55 @@ class ResponseVerifier:
         """Extract only content text from JSON structure (excludes metadata like numbers)"""
         text_parts = []
 
-        # 1. Preamble - initial section content only
-        preamble = data.get('preamble', '')
-        if preamble and preamble.strip():
-            text_parts.append(preamble.strip())
-
-        # 2. Articles - only body content, skip numbers
-        articles = data.get('articles', [])
-        if isinstance(articles, list):
-            for article in articles:
-                if isinstance(article, dict):
-                    article_text = article.get('body', '')
-                    if article_text and article_text.strip():
-                        text_parts.append(article_text.strip())
-
-        # 3. Postamble - text after articles content only
-        postamble = data.get('postamble', '')
-        if postamble and postamble.strip():
-            text_parts.append(postamble.strip())
-
-        # 4. Short document - for documents without preamble/articles structure
-        short_document = data.get('short_document', '')
-        if short_document and short_document.strip():
-            text_parts.append(short_document.strip())
-
-        # 5. Firms - signatures and official names content only
-        firms = data.get('firms', '')
-        if firms and firms.strip():
-            text_parts.append(firms.strip())
-
-        # 6. Referenced articles text (only body content, skip metadata)
-        references = data.get('references', [])
-        if isinstance(references, list):
-            for ref in references:
-                if isinstance(ref, dict):
-                    ref_articles = ref.get('articles', [])
-                    if isinstance(ref_articles, list):
-                        for ref_article in ref_articles:
-                            if isinstance(ref_article, dict):
-                                ref_article_text = ref_article.get('body', '')
-                                if ref_article_text and ref_article_text.strip():
-                                    text_parts.append(ref_article_text.strip())
+        # Extract text from divisions structure
+        divisions = data.get('divisions', [])
+        if isinstance(divisions, list):
+            for division in divisions:
+                if isinstance(division, dict):
+                    self._extract_text_from_division(division, text_parts)
 
         return ' '.join(text_parts)
+
+    def _extract_text_from_division(self, division: dict, text_parts: list):
+        """Recursively extract text from a division and its nested content"""
+        # Extract division body text
+        body = division.get('body', '')
+        if body and body.strip():
+            text_parts.append(body.strip())
+
+        # Extract articles text (sorted by order to preserve sequence)
+        articles = division.get('articles', [])
+        if isinstance(articles, list):
+            # Sort by order field if available, otherwise use original order
+            sorted_articles = sorted(articles, key=lambda x: x.get('order', 0) if isinstance(x, dict) else 0)
+            for article in sorted_articles:
+                if isinstance(article, dict):
+                    self._extract_text_from_article(article, text_parts)
+
+        # Extract nested divisions recursively (sorted by order)
+        nested_divisions = division.get('divisions', [])
+        if isinstance(nested_divisions, list):
+            # Sort by order field if available, otherwise use original order
+            sorted_divisions = sorted(nested_divisions, key=lambda x: x.get('order', 0) if isinstance(x, dict) else 0)
+            for nested_division in sorted_divisions:
+                if isinstance(nested_division, dict):
+                    self._extract_text_from_division(nested_division, text_parts)
+
+    def _extract_text_from_article(self, article: dict, text_parts: list):
+        """Recursively extract text from an article and its sub-articles"""
+        # Extract article body text
+        body = article.get('body', '')
+        if body and body.strip():
+            text_parts.append(body.strip())
+
+        # Extract nested articles recursively (sorted by order)
+        nested_articles = article.get('articles', [])
+        if isinstance(nested_articles, list):
+            # Sort by order field if available, otherwise use original order
+            sorted_nested_articles = sorted(nested_articles, key=lambda x: x.get('order', 0) if isinstance(x, dict) else 0)
+            for nested_article in sorted_nested_articles:
+                if isinstance(nested_article, dict):
+                    self._extract_text_from_article(nested_article, text_parts)
 
     def _clean_text_for_comparison(self, text: str) -> str:
         """Clean text for similarity comparison"""
@@ -218,20 +224,6 @@ class ResponseVerifier:
 
         return text.strip()
 
-    def should_escalate_model(self, original_text: str, structured_result: str) -> bool:
-        """Determine if model should be escalated based on text similarity"""
-        similarity = self.calculate_text_similarity(original_text, structured_result)
-
-        # If similarity is too low, escalate
-        threshold = self.diff_threshold
-        should_escalate = similarity < (1.0 - threshold)
-
-        if should_escalate:
-            logger.info(
-                f"Similarity {similarity:.3f} below threshold {1.0 - threshold:.3f}, escalating model"
-            )
-
-        return should_escalate
 
     def generate_content_diff(self, original_text: str, structured_text: str) -> str:
         """Generate a readable diff between original and structured text"""
@@ -275,81 +267,122 @@ class ResponseVerifier:
     ) -> Tuple[bool, str]:
         """Validate JSON structure against expected schema"""
         try:
-            # Required fields according to the prompt
-            required_fields = [
-                "preamble",
-                "articles",
-                "postamble",
-                "short_document",
-                "firms",
-                "references",
-            ]
+            # Required top-level field
+            if "divisions" not in structured_data:
+                return False, "Missing required field: divisions"
 
-            # Check all required fields exist
-            for field in required_fields:
-                if field not in structured_data:
-                    return False, f"Missing required field: {field}"
+            divisions = structured_data.get("divisions", [])
+            if not isinstance(divisions, list):
+                return False, "Field 'divisions' must be a list"
 
-            # Validate articles structure if present
-            articles = structured_data.get("articles", [])
-            if articles and isinstance(articles, list):
-                for i, article in enumerate(articles):
-                    if not isinstance(article, dict):
-                        return False, f"Article {i} is not a dictionary"
-                    if "number" not in article:
-                        return False, f"Article {i} missing 'number' field"
-                    if "body" not in article:
-                        return False, f"Article {i} missing 'body' field"
-                    # Validate number is integer or string convertible to int
-                    try:
-                        int(article["number"])
-                    except (ValueError, TypeError):
-                        return (
-                            False,
-                            f"Article {i} has invalid number format: {article.get('number')}",
-                        )
+            # Inject order fields to preserve document sequence
+            self._inject_order_fields(structured_data)
 
-            # Validate references structure if present
-            references = structured_data.get("references", [])
-            if references and isinstance(references, list):
-                for i, ref in enumerate(references):
-                    if not isinstance(ref, dict):
-                        return False, f"Reference {i} is not a dictionary"
-                    if "documentType" not in ref:
-                        return False, f"Reference {i} missing 'documentType' field"
-                    if "number" not in ref:
-                        return False, f"Reference {i} missing 'number' field"
-                    if "articles" not in ref:
-                        return False, f"Reference {i} missing 'articles' field"
-
-                    # Validate reference articles
-                    ref_articles = ref.get("articles", [])
-                    if ref_articles and isinstance(ref_articles, list):
-                        for j, ref_article in enumerate(ref_articles):
-                            if not isinstance(ref_article, dict):
-                                return (
-                                    False,
-                                    f"Reference {i} article {j} is not a dictionary",
-                                )
-                            if "number" not in ref_article:
-                                return (
-                                    False,
-                                    f"Reference {i} article {j} missing 'number' field",
-                                )
-                            if "body" not in ref_article:
-                                return (
-                                    False,
-                                    f"Reference {i} article {j} missing 'body' field",
-                                )
-
-            # Check string fields are actually strings
-            string_fields = ["preamble", "postamble", "short_document", "firms"]
-            for field in string_fields:
-                value = structured_data.get(field)
-                if value is not None and not isinstance(value, str):
-                    return False, f"Field '{field}' must be a string, got {type(value)}"
+            # Validate each division
+            for i, division in enumerate(divisions):
+                is_valid, error_msg = self._validate_division(division, f"Division {i}")
+                if not is_valid:
+                    return False, error_msg
 
             return True, "JSON structure validation passed"
 
         except Exception as e:
             return False, f"JSON validation error: {str(e)}"
+
+    def _validate_division(self, division: dict, context: str) -> Tuple[bool, str]:
+        """Validate a single division structure"""
+        if not isinstance(division, dict):
+            return False, f"{context} is not a dictionary"
+
+        # Required fields for division
+        required_fields = ["name", "ordinal", "title", "body", "articles", "divisions"]
+        for field in required_fields:
+            if field not in division:
+                return False, f"{context} missing required field: {field}"
+
+        # Validate field types
+        string_fields = ["name", "ordinal", "title", "body"]
+        for field in string_fields:
+            value = division.get(field)
+            if value is not None and not isinstance(value, str):
+                return False, f"{context} field '{field}' must be a string, got {type(value)}"
+
+        # Validate articles array
+        articles = division.get("articles", [])
+        if not isinstance(articles, list):
+            return False, f"{context} field 'articles' must be a list"
+
+        for j, article in enumerate(articles):
+            is_valid, error_msg = self._validate_article(article, f"{context} article {j}")
+            if not is_valid:
+                return False, error_msg
+
+        # Validate nested divisions array
+        nested_divisions = division.get("divisions", [])
+        if not isinstance(nested_divisions, list):
+            return False, f"{context} field 'divisions' must be a list"
+
+        for k, nested_division in enumerate(nested_divisions):
+            is_valid, error_msg = self._validate_division(nested_division, f"{context} nested division {k}")
+            if not is_valid:
+                return False, error_msg
+
+        return True, ""
+
+    def _inject_order_fields(self, structured_data: dict):
+        """Inject order fields to preserve document sequence"""
+        divisions = structured_data.get('divisions', [])
+        for div_index, division in enumerate(divisions):
+            division['order'] = div_index + 1
+            self._inject_division_order(division)
+
+    def _inject_division_order(self, division: dict):
+        """Recursively inject order fields within a division"""
+        # Add order to articles within this division
+        articles = division.get('articles', [])
+        for art_index, article in enumerate(articles):
+            article['order'] = art_index + 1
+            self._inject_article_order(article)
+
+        # Recursively handle nested divisions
+        nested_divisions = division.get('divisions', [])
+        for nested_index, nested_div in enumerate(nested_divisions):
+            nested_div['order'] = nested_index + 1
+            self._inject_division_order(nested_div)
+
+    def _inject_article_order(self, article: dict):
+        """Recursively inject order fields within nested articles"""
+        nested_articles = article.get('articles', [])
+        for nested_index, nested_article in enumerate(nested_articles):
+            nested_article['order'] = nested_index + 1
+            self._inject_article_order(nested_article)
+
+    def _validate_article(self, article: dict, context: str) -> Tuple[bool, str]:
+        """Validate a single article structure"""
+        if not isinstance(article, dict):
+            return False, f"{context} is not a dictionary"
+
+        # Required fields for article
+        required_fields = ["ordinal", "body", "articles"]
+        for field in required_fields:
+            if field not in article:
+                return False, f"{context} missing required field: {field}"
+
+        # Validate field types
+        string_fields = ["ordinal", "body"]
+        for field in string_fields:
+            value = article.get(field)
+            if value is not None and not isinstance(value, str):
+                return False, f"{context} field '{field}' must be a string, got {type(value)}"
+
+        # Validate nested articles array
+        nested_articles = article.get("articles", [])
+        if not isinstance(nested_articles, list):
+            return False, f"{context} field 'articles' must be a list"
+
+        for j, nested_article in enumerate(nested_articles):
+            is_valid, error_msg = self._validate_article(nested_article, f"{context} nested article {j}")
+            if not is_valid:
+                return False, error_msg
+
+        return True, ""

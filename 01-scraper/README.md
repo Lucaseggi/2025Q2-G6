@@ -9,7 +9,9 @@ Enhanced scraper service for InfoLEG documents with S3 caching.
 GET /health
 ```
 
-### Scrape Documents
+### Scrape Documents `/scrape`
+
+Checks cache, if not present, scrapes. Never sends into processing queue.
 
 #### Single Document
 ```http
@@ -35,7 +37,7 @@ POST /scrape
 - `force` - Override cache (default: false)
 - `max_docs` - Range limit (default: 10, max: 100)
 
-### Force Processing
+### Processing `/process`
 
 Forces fresh scraping and sends to processing queue.
 

@@ -167,6 +167,10 @@ class ApiClient:
             'lista_normas_que_la_complementan': api_response.get(
                 'listaNormasQueLaComplementan', []
             ),
+            'purified_texto_norma': None,
+            'purified_texto_norma_actualizado': None,
+            'structured_texto_norma': None,
+            'structured_texto_norma_actualizado': None,
         }
 
     def get_config_info(self) -> Dict[str, Any]:
