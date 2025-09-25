@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-from opensearchpy import OpenSearch
+import requests
 from datetime import datetime
 
 sys.path.append('/app/00-shared')
@@ -10,72 +10,36 @@ from rabbitmq_client import RabbitMQClient
 def create_queue_client():
     return RabbitMQClient()
 
-def create_opensearch_client():
-    host = os.getenv('OPENSEARCH_ENDPOINT')
-    client = OpenSearch(
-        hosts=[host],
-        http_compress=True,
-        use_ssl=False,
-        verify_certs=False,
-        ssl_assert_hostname=False,
-        ssl_show_warn=False,
-    )
-    return client
+def send_to_django_api(data):
+    """Send data to Django API for dual database insertion"""
+    django_api_url = os.getenv('DJANGO_API_URL', 'http://api:8000')
+    endpoint = f"{django_api_url}/api/data/ingest/"
 
-def ensure_index_exists(client, index_name):
-    """Create index if it doesn't exist"""
-    if not client.indices.exists(index=index_name):
-        mapping = {
-            "mappings": {
-                "properties": {
-                    "norma": {
-                        "properties": {
-                            "infoleg_id": {"type": "integer"},
-                            "jurisdiccion": {"type": "keyword"},
-                            "clase_norma": {"type": "keyword"},
-                            "tipo_norma": {"type": "keyword"},
-                            "sancion": {"type": "date"},
-                            "publicacion": {"type": "date"},
-                            "titulo_sumario": {"type": "text"},
-                            "titulo_resumido": {"type": "text"},
-                            "observaciones": {"type": "text"},
-                            "nro_boletin": {"type": "keyword"},
-                            "pag_boletin": {"type": "keyword"},
-                            "estado": {"type": "keyword"},
-                            "purified_texto_norma": {"type": "text"},
-                            "purified_texto_norma_actualizado": {"type": "text"},
-                            "structured_texto_norma": {"type": "object"},
-                            "structured_texto_norma_actualizado": {"type": "object"}
-                        }
-                    },
-                    "embedding": {
-                        "type": "knn_vector",
-                        "dimension": 768,
-                        "method": {
-                            "name": "hnsw",
-                            "space_type": "cosinesimil",
-                            "engine": "nmslib"
-                        }
-                    },
-                    "embedding_model": {"type": "keyword"},
-                    "embedding_source": {"type": "keyword"},
-                    "embedded_at": {"type": "date"},
-                    "inserted_at": {"type": "date"}
-                }
-            }
-        }
-        
-        client.indices.create(index=index_name, body=mapping)
-        print(f"[{datetime.now()}] Inserter: Created index '{index_name}'")
+    try:
+        response = requests.post(
+            endpoint,
+            json=data,
+            headers={'Content-Type': 'application/json'},
+            timeout=60
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"[{datetime.now()}] Inserter: Django API success: {result.get('success')}")
+            return result
+        else:
+            print(f"[{datetime.now()}] Inserter: Django API error {response.status_code}: {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"[{datetime.now()}] Inserter: Django API request failed: {e}")
+        return None
 
 def main():
     print("Inserter MS started - listening for messages...")
-    
+    print(f"Django API URL: {os.getenv('DJANGO_API_URL', 'http://api:8000')}")
+
     queue_client = create_queue_client()
-    opensearch = create_opensearch_client()
-    
-    index_name = "documents"
-    ensure_index_exists(opensearch, index_name)
     
     while True:
         try:
@@ -85,47 +49,75 @@ def main():
             if message_body:
                 print(f"[{datetime.now()}] Inserter: Received message")
                 
-                # DEBUG: Print the complete dequeued message for analysis
+                # DEBUG: Print the complete dequeued message for analysis (with embedding truncated)
                 print("="*100)
                 print("COMPLETE DEQUEUED MESSAGE FROM EMBEDDING-MS:")
                 print("="*100)
-                print(json.dumps(message_body, indent=2, default=str))
+
+                # Create a copy for logging with embedding truncated
+                log_message = json.loads(json.dumps(message_body, default=str))
+                if 'data' in log_message and 'embedding' in log_message['data']:
+                    embedding_length = len(log_message['data']['embedding'])
+                    log_message['data']['embedding'] = f"[EMBEDDING_VECTOR_{embedding_length}_DIMS]"
+
+                # Also truncate embeddings in structured data if present
+                def truncate_embeddings_in_dict(obj):
+                    if isinstance(obj, dict):
+                        result = {}
+                        for key, value in obj.items():
+                            if key == 'embedding' and isinstance(value, list):
+                                result[key] = f"[EMBEDDING_VECTOR_{len(value)}_DIMS]"
+                            else:
+                                result[key] = truncate_embeddings_in_dict(value)
+                        return result
+                    elif isinstance(obj, list):
+                        return [truncate_embeddings_in_dict(item) for item in obj]
+                    else:
+                        return obj
+
+                log_message = truncate_embeddings_in_dict(log_message)
+
+                print(json.dumps(log_message, indent=2, default=str))
                 print("="*100)
                 
+                # Add insertion timestamp to the message
+                message_body['insert_timestamp'] = datetime.now().isoformat()
+
+                # Get document ID for logging
+                doc_id = message_body['data']['norma']['infoleg_id']
+
+                # DEBUG: Print summary before sending to Django
+                print("-"*100)
+                print(f"SENDING TO DJANGO API (Norma ID: {doc_id}):")
+                print("-"*100)
                 data = message_body['data']
-                
-                # Add insertion timestamp
-                data['inserted_at'] = datetime.now().isoformat()
-                
-                # Get document ID from norma
-                doc_id = data['norma']['infoleg_id']
-                
-                # DEBUG: Print the final document structure before insertion
-                print("-"*100)
-                print(f"FINAL DOCUMENT STRUCTURE FOR OPENSEARCH (ID: {doc_id}):")
-                print("-"*100)
-                print(f"Document ID: {doc_id}")
+                print(f"Embedding type: {data.get('embedding_type', 'N/A')}")
                 print(f"Embedding dimensions: {len(data.get('embedding', []))}")
-                print(f"Embedding model: {data.get('embedding_model', 'N/A')}")
-                print(f"Embedding source: {data.get('embedding_source', 'N/A')}")
-                print(f"Norma keys: {list(data['norma'].keys()) if 'norma' in data else 'N/A'}")
-                print(f"Has purified_texto_norma: {'purified_texto_norma' in data['norma'] and bool(data['norma']['purified_texto_norma'])}")
-                print(f"Has purified_texto_norma_actualizado: {'purified_texto_norma_actualizado' in data['norma'] and bool(data['norma']['purified_texto_norma_actualizado'])}")
-                print(f"Has structured_texto_norma: {'structured_texto_norma' in data['norma'] and bool(data['norma']['structured_texto_norma'])}")
-                print(f"Has structured_texto_norma_actualizado: {'structured_texto_norma_actualizado' in data['norma'] and bool(data['norma']['structured_texto_norma_actualizado'])}")
+                print(f"Has structured data: {bool(data['norma'].get('structured_texto_norma') or data['norma'].get('structured_texto_norma_actualizado'))}")
+
+                if data['norma'].get('structured_texto_norma_actualizado'):
+                    structured = data['norma']['structured_texto_norma_actualizado']
+                    print(f"Structured divisions: {len(structured.get('divisions', []))}")
+                elif data['norma'].get('structured_texto_norma'):
+                    structured = data['norma']['structured_texto_norma']
+                    print(f"Structured divisions: {len(structured.get('divisions', []))}")
+
                 print("-"*100)
-                
-                # Insert into OpenSearch
-                response_os = opensearch.index(
-                    index=index_name,
-                    id=doc_id,
-                    body=data
-                )
-                
-                # Message acknowledged automatically by RabbitMQ
-                
-                print(f"[{datetime.now()}] Inserter: Inserted document {doc_id} into OpenSearch - Result: {response_os['result']}")
-                print(f"[{datetime.now()}] Inserter: OpenSearch response: {response_os}")
+
+                # Send to Django API for dual database insertion
+                api_result = send_to_django_api(message_body)
+
+                if api_result and api_result.get('success'):
+                    postgres_status = api_result.get('postgres', {}).get('status', 'unknown')
+                    opensearch_status = api_result.get('opensearch', {}).get('status', 'unknown')
+
+                    print(f"[{datetime.now()}] Inserter: Document {doc_id} processed successfully")
+                    print(f"[{datetime.now()}] Inserter: PostgreSQL: {postgres_status}")
+                    print(f"[{datetime.now()}] Inserter: OpenSearch: {opensearch_status}")
+                else:
+                    print(f"[{datetime.now()}] Inserter: Failed to process document {doc_id}")
+                    if api_result:
+                        print(f"[{datetime.now()}] Inserter: Error: {api_result.get('error', 'Unknown error')}")
                     
         except Exception as e:
             print(f"[{datetime.now()}] Inserter: Error: {e}")

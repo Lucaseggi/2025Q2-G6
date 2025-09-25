@@ -79,95 +79,75 @@ class DocumentProcessor:
             norma = scraped_data.norma
             self.stats['total_processed'] += 1
 
-            # Step 1: Text purification - process both fields individually
-            purified_texto_norma = self._purify_text_field(
-                norma.texto_norma, "texto_norma", norma.infoleg_id
-            )
-
-            # Process texto_norma_actualizado if exists and different from main text
+            # Step 1: Text purification - prioritize texto_norma_actualizado
+            purified_texto_norma = None
             purified_texto_actualizado = None
-            if (norma.texto_norma_actualizado and norma.texto_norma_actualizado.strip() and
-                (not norma.texto_norma or norma.texto_norma_actualizado.strip() != norma.texto_norma.strip())):
+            primary_field = None
+            primary_purified_text = None
+
+            # Check if texto_norma_actualizado exists and has content
+            if norma.texto_norma_actualizado and norma.texto_norma_actualizado.strip():
                 purified_texto_actualizado = self._purify_text_field(
                     norma.texto_norma_actualizado, "texto_norma_actualizado", norma.infoleg_id
                 )
+                if purified_texto_actualizado:
+                    primary_field = "texto_norma_actualizado"
+                    primary_purified_text = purified_texto_actualizado
+
+            # Fall back to texto_norma only if texto_norma_actualizado is not available
+            if not primary_purified_text and norma.texto_norma and norma.texto_norma.strip():
+                purified_texto_norma = self._purify_text_field(
+                    norma.texto_norma, "texto_norma", norma.infoleg_id
+                )
+                if purified_texto_norma:
+                    primary_field = "texto_norma"
+                    primary_purified_text = purified_texto_norma
 
             # Check if we have any content to process
-            if not purified_texto_norma and not purified_texto_actualizado:
-                self._log_processing_result(norma.infoleg_id, False, None, "No content after purification")
-                return None
+            if not primary_purified_text:
+                self._log_processing_result(norma.infoleg_id, False, None, "No content after purification - sending to embedding queue anyway")
 
-            # Step 2: LLM processing for structuring - process each field separately
+                # Create ProcessedData object even without text processing
+                processed_data = ProcessedData(
+                    norma=norma, processing_timestamp=datetime.now().isoformat()
+                )
+                return processed_data
+
+            # Step 2: LLM processing for structuring - process only the primary field
             llm_results = {}
 
-            # Process texto_norma if available
-            if purified_texto_norma:
-                result = self.llm_manager.process_text_with_escalation(purified_texto_norma)
-                if result.success:
-                    # Check for critical failures that should drop the norm
-                    if not result.json_validation_passed:
-                        self.stats['dropped_json_validation'] += 1
-                        self._log_processing_result(norma.infoleg_id, False,
-                                                  {'texto_norma': result},
-                                                  f"JSON validation failed - {result.json_validation_error}")
-                        return None
-
-                    # THIS WILL PUSH INTO HUMAN INTERENTION QUEUE IN THE NEAR FUTURE
-                    if result.human_intervention_required:
-                        self.stats['dropped_human_intervention'] += 1
-                        self._log_processing_result(norma.infoleg_id, False,
-                                                  {'texto_norma': result},
-                                                  f"Human intervention required - quality control failed")
-                        return None
-
-                    # Success - store results
-                    llm_results['texto_norma'] = {
-                        'structured_data': result.structured_data,
-                        'model_used': result.model_used,
-                        'models_used': result.models_used,
-                        'similarity_score': result.text_similarity_score,
-                        'processing_time': result.processing_time,
-                        'tokens_used': result.tokens_used,
-                    }
-                else:
-                    self.stats['dropped_other_failures'] += 1
-                    self._log_processing_result(norma.infoleg_id, False, None,
-                                              f"LLM processing failed - {result.error_message}")
+            result = self.llm_manager.process_text_with_escalation(primary_purified_text)
+            if result.success:
+                # Check for critical failures that should drop the norm
+                if not result.json_validation_passed:
+                    self.stats['dropped_json_validation'] += 1
+                    self._log_processing_result(norma.infoleg_id, False,
+                                              {primary_field: result},
+                                              f"JSON validation failed - {result.json_validation_error}")
                     return None
 
-            # Process texto_norma_actualizado if available
-            if purified_texto_actualizado:
-                result = self.llm_manager.process_text_with_escalation(purified_texto_actualizado)
-                if result.success:
-                    # Check for critical failures that should drop the norm
-                    if not result.json_validation_passed:
-                        self.stats['dropped_json_validation'] += 1
-                        self._log_processing_result(norma.infoleg_id, False,
-                                                  {'texto_norma_actualizado': result},
-                                                  f"JSON validation failed - {result.json_validation_error}")
-                        return None
-
-                    if result.human_intervention_required:
-                        self.stats['dropped_human_intervention'] += 1
-                        self._log_processing_result(norma.infoleg_id, False,
-                                                  {'texto_norma_actualizado': result},
-                                                  f"Human intervention required - quality control failed")
-                        return None
-
-                    # Success - store results
-                    llm_results['texto_norma_actualizado'] = {
-                        'structured_data': result.structured_data,
-                        'model_used': result.model_used,
-                        'models_used': result.models_used,
-                        'similarity_score': result.text_similarity_score,
-                        'processing_time': result.processing_time,
-                        'tokens_used': result.tokens_used,
-                    }
-                else:
-                    self.stats['dropped_other_failures'] += 1
-                    self._log_processing_result(norma.infoleg_id, False, None,
-                                              f"LLM processing failed - {result.error_message}")
+                # THIS WILL PUSH INTO HUMAN INTERENTION QUEUE IN THE NEAR FUTURE
+                if result.human_intervention_required:
+                    self.stats['dropped_human_intervention'] += 1
+                    self._log_processing_result(norma.infoleg_id, False,
+                                              {primary_field: result},
+                                              f"Human intervention required - quality control failed")
                     return None
+
+                # Success - store results
+                llm_results[primary_field] = {
+                    'structured_data': result.structured_data,
+                    'model_used': result.model_used,
+                    'models_used': result.models_used,
+                    'similarity_score': result.text_similarity_score,
+                    'processing_time': result.processing_time,
+                    'tokens_used': result.tokens_used,
+                }
+            else:
+                self.stats['dropped_other_failures'] += 1
+                self._log_processing_result(norma.infoleg_id, False, None,
+                                          f"LLM processing failed - {result.error_message}")
+                return None
 
             # Check if we have any successful LLM results
             if not llm_results:
@@ -181,15 +161,23 @@ class DocumentProcessor:
             norma.purified_texto_norma = purified_texto_norma
             norma.purified_texto_norma_actualizado = purified_texto_actualizado
 
-            # Add structured data to norma
-            if 'texto_norma' in llm_results:
-                norma.structured_texto_norma = llm_results['texto_norma'][
-                    'structured_data'
-                ]
-            if 'texto_norma_actualizado' in llm_results:
-                norma.structured_texto_norma_actualizado = llm_results[
-                    'texto_norma_actualizado'
-                ]['structured_data']
+            # Add structured data to norma based on which field was processed
+            if primary_field == 'texto_norma_actualizado':
+                norma.structured_texto_norma_actualizado = llm_results['texto_norma_actualizado']['structured_data']
+                # Clear the other field to avoid confusion
+                norma.structured_texto_norma = None
+            elif primary_field == 'texto_norma':
+                norma.structured_texto_norma = llm_results['texto_norma']['structured_data']
+                # Clear the other field to avoid confusion
+                norma.structured_texto_norma_actualizado = None
+
+            # Add LLM processing metadata to norma
+            primary_result = llm_results[primary_field]
+            norma.llm_model_used = primary_result['model_used']
+            norma.llm_models_used = primary_result['models_used']
+            norma.llm_tokens_used = primary_result['tokens_used']
+            norma.llm_processing_time = primary_result['processing_time']
+            norma.llm_similarity_score = primary_result.get('similarity_score')
 
             # Create ProcessedData object
             processed_data = ProcessedData(

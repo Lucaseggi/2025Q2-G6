@@ -27,6 +27,12 @@ class InfolegNorma:
     purified_texto_norma_actualizado: Optional[str]
     structured_texto_norma: Optional[Dict[str, Any]]
     structured_texto_norma_actualizado: Optional[Dict[str, Any]]
+    # LLM processing metadata
+    llm_model_used: Optional[str] = None
+    llm_models_used: Optional[List[str]] = None
+    llm_tokens_used: Optional[int] = None
+    llm_processing_time: Optional[float] = None
+    llm_similarity_score: Optional[float] = None
     
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

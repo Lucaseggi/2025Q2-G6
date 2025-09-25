@@ -1,265 +1,106 @@
-import json
+"""Main entry point for the embedding microservice"""
+
 import os
-import sys
 import threading
-import time
 from datetime import datetime
 
-sys.path.append('/app/00-shared')
-from rabbitmq_client import RabbitMQClient
-from flask import Flask, request, jsonify
-from google import genai
-from google.genai import types
-import numpy as np
-
-# Initialize Gemini client - will be done after environment variables are loaded
-
-app = Flask(__name__)
+from embedders import create_embedder
+from document_processor import DocumentProcessor
+from api import app, initialize_embedder
 
 
-# Initialize startup logic when imported (for gunicorn) - will be called at end of file
-def initialize_app():
-    """Initialize the app for gunicorn"""
-    print("Starting Embedding MS with both queue processor and API server...")
-
-    # Debug: Check if API key is available
-    api_key = os.getenv('GEMINI_API_KEY')
-    if api_key:
-        print(f"[{datetime.now()}] Gemini API key found (length: {len(api_key)} chars)")
-    else:
-        print(
-            f"[{datetime.now()}] WARNING: GEMINI_API_KEY environment variable not set!"
-        )
-
-    # Start queue processor in background
-    start_queue_processor()
-    print("Embedding service initialized")
-
-
-def create_queue_client():
-    return RabbitMQClient()
-
-
-def get_gemini_client():
-    """Initialize Gemini client with API key"""
-    api_key = os.getenv('GEMINI_API_KEY')
-    if not api_key:
-        print(
-            f"[{datetime.now()}] Embedding: ERROR - GEMINI_API_KEY environment variable not set"
-        )
-        return None
-
-    try:
-        client = genai.Client(api_key=api_key)
-        return client
-    except Exception as e:
-        print(f"[{datetime.now()}] Embedding: Error initializing Gemini client: {e}")
-        return None
-
-
-def generate_gemini_embedding(text):
-    """Generate embedding using Gemini"""
-    try:
-        client = get_gemini_client()
-        if not client:
-            return None
-
-        result = client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=text,  # Pass text directly, not as a list
-            config=types.EmbedContentConfig(output_dimensionality=768),
-        )
-
-        # Extract the embedding values as a list
-        [embedding_obj] = result.embeddings
-        embedding = list(embedding_obj.values)
-
-        print(
-            f"[{datetime.now()}] Embedding: Generated {len(embedding)}-dimensional embedding"
-        )
-        return embedding
-
-    except Exception as e:
-        print(f"[{datetime.now()}] Embedding: Error generating Gemini embedding: {e}")
-        return None
-
-
-def process_document_embedding():
-    """Process documents from the queue"""
-    print("Embedding MS document processor started - listening for messages...")
-
-    queue_client = create_queue_client()
-
-    while True:
-        try:
-            # Receive message from embedding queue
-            message_body = queue_client.receive_message('embedding', timeout=20)
-
-            if message_body:
-                print(f"[{datetime.now()}] Embedding: Received message")
-
-                # DEBUG: Print the complete dequeued message for analysis
-                print("=" * 100)
-                print("COMPLETE DEQUEUED MESSAGE FROM PROCESSING-MS:")
-                print("=" * 100)
-                print(json.dumps(message_body, indent=2, default=str))
-                print("=" * 100)
-
-                # The message body is now a ProcessedData object with 'norma' and 'processing_timestamp'
-                norma = message_body.get('norma', {})
-
-                # Determine which text to embed - prefer purified_texto_actualizado over purified_texto_norma
-                content_to_embed = None
-                content_source = None
-
-                if norma.get('purified_texto_norma_actualizado'):
-                    content_to_embed = norma['purified_texto_norma_actualizado']
-                    content_source = "purified_texto_norma_actualizado"
-                elif norma.get('purified_texto_norma'):
-                    content_to_embed = norma['purified_texto_norma']
-                    content_source = "purified_texto_norma"
-                else:
-                    # Fallback to basic norm info if no purified text
-                    basic_info = f"{norma.get('titulo_sumario', '')} {norma.get('titulo_resumido', '')}".strip()
-                    if basic_info:
-                        content_to_embed = basic_info
-                        content_source = "basic_info"
-
-                if not content_to_embed:
-                    print(
-                        f"[{datetime.now()}] Embedding: No content found for document {norma.get('infoleg_id')}"
-                    )
-                    # Message already acknowledged automatically by RabbitMQ
-                    continue
-
-                print(
-                    f"[{datetime.now()}] Embedding: Using content from {content_source} for document {norma.get('infoleg_id')}"
-                )
-                print(f"Content length: {len(content_to_embed)} characters")
-
-                # Generate embedding using Gemini
-                embedding_vector = generate_gemini_embedding(content_to_embed)
-
-                if embedding_vector is None:
-                    print(
-                        f"[{datetime.now()}] Embedding: Failed to generate embedding for document {norma.get('infoleg_id')}"
-                    )
-                    # Message already acknowledged automatically by RabbitMQ
-                    continue
-
-                print(
-                    f"[{datetime.now()}] Embedding: Generated {len(embedding_vector)}-dimensional embedding"
-                )
-
-                # Create embedded data with simplified structure
-                embedded_data = {
-                    'norma': norma,
-                    'embedding': embedding_vector,
-                    'embedding_model': 'gemini-embedding-001',
-                    'embedding_source': content_source,
-                    'embedded_at': datetime.now().isoformat(),
-                }
-
-                # Send to inserting queue
-                insert_message = {
-                    "source": "embedding",
-                    "data": embedded_data,
-                    "insert_timestamp": datetime.now().isoformat(),
-                }
-
-                queue_client.send_message('inserting', insert_message)
-
-                print(
-                    f"[{datetime.now()}] Embedding: Generated embedding for document {norma.get('infoleg_id')} and sent to inserting queue"
-                )
-
-        except Exception as e:
-            print(f"[{datetime.now()}] Embedding: Error: {type(e).__name__}: {e}")
-            # Wait before retrying
-            time.sleep(5)
-
-
-# API Endpoints
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    return jsonify(
-        {
-            'status': 'healthy',
-            'service': 'embedding-ms',
-            'timestamp': datetime.now().isoformat(),
-        }
+def start_queue_processor(embedder):
+    """Start the document processor in a separate thread"""
+    processor = DocumentProcessor(embedder)
+    processor_thread = threading.Thread(
+        target=processor.process_documents_from_queue,
+        name="DocumentProcessor",
+        daemon=True
     )
-
-
-@app.route('/embed', methods=['POST'])
-def embed_text():
-    """Generate embedding for user prompt"""
-    try:
-        data = request.get_json()
-
-        if not data or 'text' not in data:
-            return jsonify({'error': 'Text field is required'}), 400
-
-        text = data['text']
-        if not text.strip():
-            return jsonify({'error': 'Text cannot be empty'}), 400
-
-        print(
-            f"[{datetime.now()}] Embedding API: Generating embedding for user text ({len(text)} chars)"
-        )
-
-        # Generate embedding
-        embedding = generate_gemini_embedding(text)
-
-        if embedding is None:
-            return jsonify({'error': 'Failed to generate embedding'}), 500
-
-        response = {
-            'embedding': embedding,
-            'model': 'gemini-embedding-001',
-            'dimensions': len(embedding),
-            'timestamp': datetime.now().isoformat(),
-        }
-
-        return jsonify(response)
-
-    except Exception as e:
-        print(f"[{datetime.now()}] Embedding API: Error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-def start_queue_processor():
-    """Start the queue processor in a separate thread"""
-    queue_thread = threading.Thread(target=process_document_embedding, daemon=True)
-    queue_thread.start()
+    processor_thread.start()
+    return processor_thread
 
 
 def main():
     """Main function to start both queue processor and API server"""
     print("Starting Embedding MS with both queue processor and API server...")
 
-    # Debug: Check if API key is available
-    api_key = os.getenv('GEMINI_API_KEY')
-    if api_key:
-        print(f"[{datetime.now()}] Gemini API key found (length: {len(api_key)} chars)")
-    else:
-        print(
-            f"[{datetime.now()}] WARNING: GEMINI_API_KEY environment variable not set!"
-        )
+    # Initialize embedder for queue processing
+    embedder_type = os.getenv('EMBEDDER_TYPE', 'gemini')
+    embedder_config = {
+        'model_name': os.getenv('EMBEDDING_MODEL', 'gemini-embedding-001'),
+        'output_dimensionality': int(os.getenv('EMBEDDING_DIMENSION', '768')),
+        'api_key': os.getenv('GEMINI_API_KEY')
+    }
+
+    try:
+        embedder = create_embedder(embedder_type, embedder_config)
+        if not embedder.is_available():
+            print(f"[{datetime.now()}] Main: Embedder not available. Exiting.")
+            return
+
+        print(f"[{datetime.now()}] Main: Embedder initialized successfully ({embedder_type})")
+        print(f"[{datetime.now()}] Main: Model: {embedder.get_model_name()}")
+        print(f"[{datetime.now()}] Main: Dimensions: {embedder.get_embedding_dimension()}")
+
+    except Exception as e:
+        print(f"[{datetime.now()}] Main: Error initializing embedder: {e}")
+        return
+
+    # Initialize API embedder
+    if not initialize_embedder():
+        print(f"[{datetime.now()}] Main: Failed to initialize API embedder")
+        return
 
     # Start queue processor in background
-    start_queue_processor()
+    processor_thread = start_queue_processor(embedder)
+    print(f"[{datetime.now()}] Main: Document processor thread started")
 
-    # Start Flask API server
-    port = int(os.getenv('EMBEDDING_PORT'))
-    debug_mode = os.getenv('DEBUG') == '1'
-    print(f"Embedding API server starting on port {port} (debug={debug_mode})")
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    # Start API server in a separate thread
+    api_thread = threading.Thread(
+        target=lambda: app.run(
+            host='0.0.0.0',
+            port=int(os.getenv('EMBEDDING_PORT', 8005)),
+            debug=os.getenv('DEBUG') == '1'
+        ),
+        name="APIServer",
+        daemon=True
+    )
+    api_thread.start()
+    print(f"[{datetime.now()}] Main: API server thread started on port {os.getenv('EMBEDDING_PORT', 8005)}")
+
+    try:
+        # Keep main thread alive and monitor child threads
+        while True:
+            processor_thread.join(timeout=1.0)
+            api_thread.join(timeout=1.0)
+
+            # Check if threads are still alive and restart if needed
+            if not processor_thread.is_alive():
+                print(f"[{datetime.now()}] Main: Document processor thread died, restarting...")
+                processor_thread = start_queue_processor(embedder)
+
+            if not api_thread.is_alive():
+                print(f"[{datetime.now()}] Main: API server thread died, restarting...")
+                api_thread = threading.Thread(
+                    target=lambda: app.run(
+                        host='0.0.0.0',
+                        port=int(os.getenv('EMBEDDING_PORT', 8005)),
+                        debug=os.getenv('DEBUG') == '1'
+                    ),
+                    name="APIServer",
+                    daemon=True
+                )
+                api_thread.start()
+
+    except KeyboardInterrupt:
+        print(f"[{datetime.now()}] Main: Shutting down embedding service...")
+        # Cleanup embedder
+        try:
+            embedder.unload_model()
+        except:
+            pass
 
 
 if __name__ == "__main__":
     main()
-
-# Initialize when imported (for gunicorn)
-initialize_app()

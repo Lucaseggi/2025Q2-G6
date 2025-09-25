@@ -1,40 +1,49 @@
 import json
 import time
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
 from django.conf import settings
 import requests
 from google import genai
 from google.genai import types
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
 from .services import OpenSearchService
+from users.models import PromptHistory
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def ask_question(request):
     """
-    Public endpoint for RAG-based question answering
-    POST /api/questions/
+    Authenticated endpoint for RAG-based question answering
+    POST /api/chatbot/ask/
     Body: {"question": "What are the regulations about the Argentine flag?"}
+
+    Requires authentication. Tracks token usage.
     """
     start_time = time.time()
-    
+    user = request.user
+
     try:
-        # Parse JSON body
-        try:
-            body = json.loads(request.body.decode('utf-8'))
-        except json.JSONDecodeError:
-            return JsonResponse({
-                'error': 'Invalid JSON in request body'
-            }, status=400)
-        
-        # Extract question from request
-        question_text = body.get('question')
+        # Parse request data
+        question_text = request.data.get('question')
         if not question_text or not question_text.strip():
-            return JsonResponse({
+            return Response({
                 'error': 'Question text is required'
-            }, status=400)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Estimate token usage (rough estimate: ~3-4 chars per token)
+        estimated_tokens = len(question_text) // 3 + 500  # Question + expected response
+
+        # Check if user can use tokens (skip for admin)
+        if not user.can_use_tokens(estimated_tokens):
+            return Response({
+                'error': 'Insufficient tokens',
+                'tokens_needed': estimated_tokens,
+                'tokens_remaining': user.tokens_remaining(),
+                'upgrade_message': 'Please upgrade your plan or contact support for more tokens.'
+            }, status=status.HTTP_403_FORBIDDEN)
         
         # Initialize services
         opensearch_service = OpenSearchService()
@@ -160,27 +169,48 @@ Respuesta:"""
             )
             
             answer = response.text.strip()
-            
+
+            # Calculate actual tokens used (estimate from response length)
+            actual_tokens = len(question_text + answer) // 3
+
+            # Record token usage
+            user.use_tokens(actual_tokens)
+
+            # Save prompt history
+            PromptHistory.objects.create(
+                user=user,
+                prompt_text=question_text,
+                response_summary=answer[:200] + '...' if len(answer) > 200 else answer,
+                tokens_used=actual_tokens,
+                model_used='gemini-1.5-flash',
+                response_time_ms=int((time.time() - start_time) * 1000),
+                results_found=len(search_results)
+            )
+
         except Exception as e:
-            return JsonResponse({
+            return Response({
                 'error': 'Failed to generate response',
                 'details': str(e),
-                'fallback_answer': f"Basado en {len(search_results)} documentos encontrados:\\n\\n{context}",
+                'fallback_answer': f"Basado en {len(search_results)} documentos encontrados:\n\n{context}",
                 'question': question_text,
                 'sources': sources
-            })
-        
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         # Step 5: Return complete response
-        return JsonResponse({
+        processing_time = time.time() - start_time
+
+        return Response({
             'answer': answer,
             'question': question_text,
             'sources': sources,
             'documents_found': len(search_results),
-            'processing_time': time.time() - start_time
+            'processing_time': processing_time,
+            'tokens_used': actual_tokens,
+            'tokens_remaining': user.tokens_remaining()
         })
         
     except Exception as e:
-        return JsonResponse({
+        return Response({
             'error': 'Internal server error',
             'details': str(e)
-        }, status=500)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
