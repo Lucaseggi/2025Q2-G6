@@ -124,7 +124,7 @@ class GrpcServiceClients:
                 'message': error_msg
             }
 
-    def call_both_services_sequential(self, data):
+    def call_both_services_sequential(self, data, vectorial_data=None):
         """Call relational-ms first, then vectorial-ms if successful (sequential pipeline)"""
         print(f"[{datetime.now()}] Starting sequential pipeline...")
 
@@ -134,8 +134,9 @@ class GrpcServiceClients:
         if relational_result['success']:
             print(f"[{datetime.now()}] Relational storage successful, proceeding with vectorial storage...")
 
-            # Call vectorial service with original data (preserving embeddings)
-            vectorial_result = self.call_vectorial_store(data, relational_result.get('pk_mapping_json'))
+            # Call vectorial service with vectorial_data if provided, otherwise use original data
+            vectorial_data_to_use = vectorial_data if vectorial_data is not None else data
+            vectorial_result = self.call_vectorial_store(vectorial_data_to_use, relational_result.get('pk_mapping_json'))
 
             return {
                 'relational': relational_result,

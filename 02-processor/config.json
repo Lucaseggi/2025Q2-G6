@@ -1,0 +1,39 @@
+{
+  "service": {
+    "name": "processor-ms",
+    "version": "2.0",
+    "debug": false
+  },
+  "rabbitmq": {
+    "host": "rabbitmq",
+    "port": 5672,
+    "user": "admin",
+    "vhost": "/",
+    "queues": {
+      "input": "processing",
+      "output": "embedding"
+    }
+  },
+  "gemini": {
+    "models": [
+      "gemini-2.0-flash-lite",
+      "gemini-1.5-flash",
+      "gemini-2.0-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.5-flash",
+      "gemini-1.5-pro",
+      "gemini-2.5-pro"
+    ],
+    "rate_limit": 60,
+    "max_input_tokens": 1048576,
+    "max_output_tokens": 8192,
+    "max_retries": 3,
+    "retry_delay": 1,
+    "diff_threshold": 0.3
+  },
+  "processing": {
+    "batch_size": 1,
+    "timeout_seconds": 300,
+    "stats_interval_minutes": 5
+  }
+}

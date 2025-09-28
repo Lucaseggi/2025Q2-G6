@@ -1,5 +1,15 @@
-pika==1.3.2
+# FastAPI and web server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Pydantic for data validation
+pydantic==2.5.0
+
+# Google Generative AI
 google-genai
-flask
-numpy
-gunicorn==21.2.0
+
+# Message queue
+pika==1.3.2
+
+# Utilities
+python-dotenv==1.0.0

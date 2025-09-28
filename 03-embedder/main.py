@@ -1,106 +1,85 @@
-"""Main entry point for the embedding microservice"""
+"""Main entry point for the embedding service (API + Queue Processing)"""
 
 import os
+import logging
 import threading
-from datetime import datetime
+import uvicorn
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 
-from embedders import create_embedder
-from document_processor import DocumentProcessor
-from api import app, initialize_embedder
+from src.api.endpoints import router
+from src.dependencies import get_embedder_service
+from src.queue_processor import QueueProcessor
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def start_queue_processor(embedder):
-    """Start the document processor in a separate thread"""
-    processor = DocumentProcessor(embedder)
-    processor_thread = threading.Thread(
-        target=processor.process_documents_from_queue,
-        name="DocumentProcessor",
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown"""
+    # Startup
+    logger.info("Embedding Service API started")
+
+    # Start queue processor in background thread
+    queue_thread = threading.Thread(
+        target=start_queue_processor,
+        name="QueueProcessor",
         daemon=True
     )
-    processor_thread.start()
-    return processor_thread
+    queue_thread.start()
+    logger.info("Queue processor thread started")
+
+    yield
+
+    # Shutdown (if needed)
+    logger.info("Embedding Service API shutting down")
+
+# Create FastAPI app
+app = FastAPI(
+    title="Embedding Service API",
+    description="Microservice for generating text embeddings using various models",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# Include API routes
+app.include_router(router)
 
 
-def main():
-    """Main function to start both queue processor and API server"""
-    print("Starting Embedding MS with both queue processor and API server...")
-
-    # Initialize embedder for queue processing
-    embedder_type = os.getenv('EMBEDDER_TYPE', 'gemini')
-    embedder_config = {
-        'model_name': os.getenv('EMBEDDING_MODEL', 'gemini-embedding-001'),
-        'output_dimensionality': int(os.getenv('EMBEDDING_DIMENSION', '768')),
-        'api_key': os.getenv('GEMINI_API_KEY')
-    }
-
+def start_queue_processor():
+    """Start the queue processor in a background thread"""
     try:
-        embedder = create_embedder(embedder_type, embedder_config)
-        if not embedder.is_available():
-            print(f"[{datetime.now()}] Main: Embedder not available. Exiting.")
+        # Get embedder service with dependency injection
+        embedder_service = get_embedder_service()
+
+        if not embedder_service.is_available():
+            logger.error("Embedder service not available for queue processing")
             return
 
-        print(f"[{datetime.now()}] Main: Embedder initialized successfully ({embedder_type})")
-        print(f"[{datetime.now()}] Main: Model: {embedder.get_model_name()}")
-        print(f"[{datetime.now()}] Main: Dimensions: {embedder.get_embedding_dimension()}")
+        logger.info("Starting queue processor thread...")
+
+        # Start queue processor
+        processor = QueueProcessor(embedder_service)
+        processor.process_documents_from_queue()
 
     except Exception as e:
-        print(f"[{datetime.now()}] Main: Error initializing embedder: {e}")
-        return
+        logger.error(f"Error in queue processor: {e}")
 
-    # Initialize API embedder
-    if not initialize_embedder():
-        print(f"[{datetime.now()}] Main: Failed to initialize API embedder")
-        return
-
-    # Start queue processor in background
-    processor_thread = start_queue_processor(embedder)
-    print(f"[{datetime.now()}] Main: Document processor thread started")
-
-    # Start API server in a separate thread
-    api_thread = threading.Thread(
-        target=lambda: app.run(
-            host='0.0.0.0',
-            port=int(os.getenv('EMBEDDING_PORT', 8005)),
-            debug=os.getenv('DEBUG') == '1'
-        ),
-        name="APIServer",
-        daemon=True
-    )
-    api_thread.start()
-    print(f"[{datetime.now()}] Main: API server thread started on port {os.getenv('EMBEDDING_PORT', 8005)}")
-
-    try:
-        # Keep main thread alive and monitor child threads
-        while True:
-            processor_thread.join(timeout=1.0)
-            api_thread.join(timeout=1.0)
-
-            # Check if threads are still alive and restart if needed
-            if not processor_thread.is_alive():
-                print(f"[{datetime.now()}] Main: Document processor thread died, restarting...")
-                processor_thread = start_queue_processor(embedder)
-
-            if not api_thread.is_alive():
-                print(f"[{datetime.now()}] Main: API server thread died, restarting...")
-                api_thread = threading.Thread(
-                    target=lambda: app.run(
-                        host='0.0.0.0',
-                        port=int(os.getenv('EMBEDDING_PORT', 8005)),
-                        debug=os.getenv('DEBUG') == '1'
-                    ),
-                    name="APIServer",
-                    daemon=True
-                )
-                api_thread.start()
-
-    except KeyboardInterrupt:
-        print(f"[{datetime.now()}] Main: Shutting down embedding service...")
-        # Cleanup embedder
-        try:
-            embedder.unload_model()
-        except:
-            pass
 
 
 if __name__ == "__main__":
-    main()
+    port = int(os.getenv('EMBEDDING_PORT', 8005))
+    host = os.getenv('EMBEDDING_HOST', '0.0.0.0')
+    debug = os.getenv('DEBUG', '0') == '1'
+
+    logger.info(f"Starting Embedding Service on {host}:{port}")
+    logger.info("Service will handle both API requests and queue processing")
+
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=port,
+        reload=debug,
+        log_level="info"
+    )

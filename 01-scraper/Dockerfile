@@ -10,10 +10,10 @@ RUN apt-get update && apt-get install -y \
     && update-ca-certificates
 
 COPY requirements.txt .
-COPY 00-shared/requirements.txt ./shared_requirements.txt
+COPY shared/requirements.txt ./shared_requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt -r shared_requirements.txt
 
-COPY 00-shared ./00-shared
+COPY shared ./shared
 COPY . .
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8003", "--workers", "2", "api:app"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]

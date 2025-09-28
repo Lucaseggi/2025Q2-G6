@@ -1,4 +1,10 @@
+# Sensitive environment files (contains credentials)
 .env
+*/.env
+
+# Allow configuration files (no sensitive data)
+!config.env
+!*/config.env
 
 .terraform
 .terraform.lock.hcl

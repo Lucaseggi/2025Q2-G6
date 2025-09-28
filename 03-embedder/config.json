@@ -1,0 +1,23 @@
+{
+  "service": {
+    "name": "embedding-ms",
+    "version": "2.0.0",
+    "port": 8001,
+    "debug": false
+  },
+  "rabbitmq": {
+    "host": "rabbitmq",
+    "port": 5672,
+    "user": "admin",
+    "vhost": "/",
+    "queues": {
+      "input": "embedding",
+      "output": "inserting"
+    }
+  },
+  "embedding": {
+    "embedding_model_name": "gemini-embedding-001",
+    "output_dimensionality": 768,
+    "provider": "gemini"
+  }
+}

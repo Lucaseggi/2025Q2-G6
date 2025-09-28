@@ -52,23 +52,48 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
             // Parse the incoming data
             JsonNode rootNode = objectMapper.readTree(requestData);
 
-            // Expected structure:
-            // 1. Original norma data with embeddings (request.getData())
-            // 2. PK mapping from relational-ms (will be passed in later versions)
+            // Handle both old and new data formats
+            JsonNode normaNode = null;
+            JsonNode structuredDataNode = null;
+            Integer infolegId = null;
+            String tipoNorma = "";
+            String jurisdiccion = "";
 
-            // For now, extract the data node
-            JsonNode dataNode = rootNode.path("data");
-            JsonNode normaNode = dataNode.path("norma");
+            // Try new ProcessedData format first
+            JsonNode scrapingDataNode = rootNode.path("scraping_data");
+            if (!scrapingDataNode.isMissingNode()) {
+                // New format: ProcessedData structure
+                JsonNode infolegResponse = scrapingDataNode.path("infoleg_response");
+                JsonNode processingData = rootNode.path("processing_data");
 
-            if (normaNode.isMissingNode()) {
-                sendErrorResponse(responseObserver, "Invalid data format: 'norma' field not found");
-                return;
+                if (!infolegResponse.isMissingNode()) {
+                    infolegId = infolegResponse.path("infoleg_id").asInt();
+                    tipoNorma = infolegResponse.path("tipo_norma").asText("");
+                    jurisdiccion = infolegResponse.path("jurisdiccion").asText("");
+
+                    // Get structured data from processing_data.parsings.original_text.structured_data
+                    if (!processingData.isMissingNode()) {
+                        JsonNode parsings = processingData.path("parsings");
+                        JsonNode originalTextParsing = parsings.path("original_text");
+                        structuredDataNode = originalTextParsing.path("structured_data");
+                    }
+                }
+            } else {
+                // Try old format: data.norma structure
+                JsonNode dataNode = rootNode.path("data");
+                normaNode = dataNode.path("norma");
+
+                if (normaNode.isMissingNode()) {
+                    sendErrorResponse(responseObserver, "Invalid data format: neither 'scraping_data' nor 'data.norma' field found");
+                    return;
+                }
+
+                // Extract basic norma metadata from old format
+                infolegId = normaNode.path("infoleg_id").asInt();
+                tipoNorma = normaNode.path("tipo_norma").asText("");
+                jurisdiccion = normaNode.path("jurisdiccion").asText("");
+                structuredDataNode = normaNode.path("structured_texto_norma");
             }
-
-            // Extract basic norma metadata
-            Integer infolegId = normaNode.path("infoleg_id").asInt();
-            String tipoNorma = normaNode.path("tipo_norma").asText("");
-            String jurisdiccion = normaNode.path("jurisdiccion").asText("");
 
             System.out.println("Processing norma with infoleg_id: " + infolegId);
 
@@ -76,23 +101,24 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
             AtomicInteger documentCount = new AtomicInteger(0);
             List<String> errors = new ArrayList<>();
 
-            // Process structured_texto_norma if present
-            JsonNode structuredTextoNorma = normaNode.path("structured_texto_norma");
-            if (!structuredTextoNorma.isMissingNode()) {
-                JsonNode divisions = structuredTextoNorma.path("divisions");
+            // Process structured data if present
+            if (!structuredDataNode.isMissingNode()) {
+                JsonNode divisions = structuredDataNode.path("divisions");
                 if (divisions.isArray()) {
                     processDivisions(divisions, infolegId, tipoNorma, jurisdiccion,
                                    "texto_norma", documentCount, errors);
                 }
             }
 
-            // Process structured_texto_norma_actualizado if present
-            JsonNode structuredTextoNormaActualizado = normaNode.path("structured_texto_norma_actualizado");
-            if (!structuredTextoNormaActualizado.isMissingNode()) {
-                JsonNode divisions = structuredTextoNormaActualizado.path("divisions");
-                if (divisions.isArray()) {
-                    processDivisions(divisions, infolegId, tipoNorma, jurisdiccion,
-                                   "texto_norma_actualizado", documentCount, errors);
+            // For old format, also check for structured_texto_norma_actualizado
+            if (normaNode != null) {
+                JsonNode structuredTextoNormaActualizado = normaNode.path("structured_texto_norma_actualizado");
+                if (!structuredTextoNormaActualizado.isMissingNode()) {
+                    JsonNode divisions = structuredTextoNormaActualizado.path("divisions");
+                    if (divisions.isArray()) {
+                        processDivisions(divisions, infolegId, tipoNorma, jurisdiccion,
+                                       "texto_norma_actualizado", documentCount, errors);
+                    }
                 }
             }
 
