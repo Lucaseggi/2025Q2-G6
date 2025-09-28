@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package relational;
+
+option java_multiple_files = true;
+option java_package = "com.simpla.relational.proto";
+option java_outer_classname = "RelationalProto";
+
+service RelationalService {
+  rpc Store(StoreRequest) returns (StoreResponse);
+  rpc ReconstructNorm(ReconstructNormRequest) returns (ReconstructNormResponse);
+}
+
+message StoreRequest {
+  string data = 1;
+}
+
+message StoreResponse {
+  bool success = 1;
+  string message = 2;
+  string pk_mapping_json = 3;
+}
+
+message ReconstructNormRequest {
+  int32 infoleg_id = 1;
+}
+
+message ReconstructNormResponse {
+  bool success = 1;
+  string message = 2;
+  string norma_json = 3;
+}

@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package vectorial;
+
+option java_multiple_files = true;
+option java_package = "com.simpla.vectorial.proto";
+option java_outer_classname = "VectorialProto";
+
+service VectorialService {
+  rpc Store(StoreRequest) returns (StoreResponse);
+  rpc Search(SearchRequest) returns (SearchResponse);
+}
+
+message StoreRequest {
+  string data = 1;
+}
+
+message StoreResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SearchRequest {
+  repeated double embedding = 1;
+  map<string, string> filters = 2;
+  int32 limit = 3;
+}
+
+message SearchResult {
+  string document_id = 1;
+  double score = 2;
+  map<string, string> metadata = 3;
+}
+
+message SearchResponse {
+  bool success = 1;
+  string message = 2;
+  repeated SearchResult results = 3;
+}

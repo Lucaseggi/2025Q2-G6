@@ -142,6 +142,10 @@ services:
         condition: service_healthy
       opensearch:
         condition: service_healthy
+      relational-ms:
+        condition: service_started
+      vectorial-ms:
+        condition: service_started
     restart: unless-stopped
     networks:
       - rag-network
@@ -158,6 +162,34 @@ services:
         condition: service_healthy
       embedder:
         condition: service_started
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  relational-ms:
+    build: ./06-relational-ms
+    container_name: relational-ms
+    ports:
+      - "50051:50051"
+    env_file:
+      - ./06-relational-ms/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  vectorial-ms:
+    build: ./07-vectorial-ms
+    container_name: vectorial-ms
+    ports:
+      - "50052:50052"
+    env_file:
+      - ./07-vectorial-ms/.env
+    depends_on:
+      opensearch:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - rag-network
