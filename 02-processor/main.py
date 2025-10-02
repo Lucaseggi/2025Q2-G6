@@ -135,7 +135,16 @@ class DocumentProcessor:
                 if message:
                     # Parse input data
                     try:
-                        input_data = ProcessedData.from_dict(message)
+                        # Handle cache wrapper format
+                        if 'cached_at' in message and 'data' in message:
+                            # Data comes from cache, unwrap it
+                            actual_data = message['data']
+                            logger.debug(f"Processing cached data from {message.get('cached_at')}")
+                        else:
+                            # Data is direct ProcessedData format
+                            actual_data = message
+
+                        input_data = ProcessedData.from_dict(actual_data)
                     except Exception as e:
                         logger.error(f"Error parsing input data: {e}")
                         continue

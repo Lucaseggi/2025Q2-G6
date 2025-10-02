@@ -51,8 +51,17 @@ class QueueProcessor:
                     self.stats['total_processed'] += 1
                     logger.info("Received message for processing")
 
+                    # Handle cache wrapper format
+                    if 'cached_at' in message_body and 'data' in message_body:
+                        # Data comes from cache, unwrap it
+                        actual_data = message_body['data']
+                        logger.debug(f"Processing cached data from {message_body.get('cached_at')}")
+                    else:
+                        # Data is direct ProcessedData format
+                        actual_data = message_body
+
                     # Parse the ProcessedData
-                    input_data = ProcessedData.from_dict(message_body)
+                    input_data = ProcessedData.from_dict(actual_data)
                     norma_id = input_data.scraping_data.infoleg_response.infoleg_id
 
                     # Process the document
