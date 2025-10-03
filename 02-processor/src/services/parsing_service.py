@@ -17,6 +17,7 @@ from interfaces.parsing_service_interface import ParsingServiceInterface
 from interfaces.text_processing_interface import TextProcessingInterface
 from interfaces.llm_service_interface import LLMServiceInterface
 from interfaces.verification_service_interface import VerificationServiceInterface
+from interfaces.storage_interface import StorageInterface
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +29,14 @@ class ParsingService(ParsingServiceInterface):
         self,
         text_processor: TextProcessingInterface,
         llm_service: LLMServiceInterface,
-        verification_service: VerificationServiceInterface
+        verification_service: VerificationServiceInterface,
+        storage_service: StorageInterface
     ):
         """Initialize parsing service with dependencies"""
         self.text_processor = text_processor
         self.llm_service = llm_service
         self.verification_service = verification_service
+        self.storage_service = storage_service
         self.logger = logging.getLogger(__name__)
 
         # Statistics tracking
@@ -43,6 +46,7 @@ class ParsingService(ParsingServiceInterface):
             'failed_purification': 0,
             'failed_llm_processing': 0,
             'failed_verification': 0,
+            'stored_to_s3': 0,
         }
 
     def process_document(self, input_data: ProcessedData) -> Optional[ProcessedData]:
@@ -163,6 +167,19 @@ class ParsingService(ParsingServiceInterface):
 
             # Add processing data to existing structure
             input_data.processing_data = processing_data
+
+            # Store successful processing result to S3
+            storage_key = f"processed_norms/{infoleg_response.infoleg_id}.json"
+            try:
+                stored = self.storage_service.store(storage_key, input_data.to_dict())
+                if stored:
+                    self.stats['stored_to_s3'] += 1
+                    self.logger.debug(f"Stored processed norm {infoleg_response.infoleg_id} to S3")
+                else:
+                    self.logger.warning(f"Failed to store processed norm {infoleg_response.infoleg_id} to S3")
+            except Exception as storage_error:
+                self.logger.error(f"Error storing to S3: {storage_error}")
+                # Continue anyway - storage failure shouldn't stop processing
 
             self.stats['successful'] += 1
             return input_data

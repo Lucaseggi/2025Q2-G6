@@ -18,6 +18,7 @@ from services.parsing_service import ParsingService
 from services.text_processing_service import TextProcessingService
 from services.llm_service import LLMService
 from services.verification_service import VerificationService
+from services.storage_service import StorageService
 
 from config import ProcessorSettings
 
@@ -45,12 +46,20 @@ class DocumentProcessor:
         self.verification_service = VerificationService(
             similarity_threshold=getattr(self.config.gemini, 'diff_threshold', 0.15)
         )
+        self.storage_service = StorageService(
+            bucket_name=self.config.s3.bucket_name,
+            endpoint_url=self.config.s3.endpoint,
+            access_key_id=self.config.s3.access_key_id,
+            secret_access_key=self.config.s3.secret_access_key,
+            region=self.config.s3.region
+        )
 
         # Initialize main parsing service
         self.parsing_service = ParsingService(
             text_processor=self.text_processor,
             llm_service=self.llm_service,
-            verification_service=self.verification_service
+            verification_service=self.verification_service,
+            storage_service=self.storage_service
         )
 
         # Processing statistics
@@ -114,6 +123,7 @@ class DocumentProcessor:
             logger.info(f"  - Failed purification:   {parsing_stats['failed_purification']}")
             logger.info(f"  - Failed LLM processing: {parsing_stats['failed_llm_processing']}")
             logger.info(f"  - Failed verification:   {parsing_stats['failed_verification']}")
+            logger.info(f"  - Stored to S3:          {parsing_stats['stored_to_s3']}")
 
         logger.info("=" * 80)
 

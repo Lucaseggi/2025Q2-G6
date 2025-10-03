@@ -14,6 +14,13 @@
       "output": "embedding"
     }
   },
+  "s3": {
+    "endpoint": "http://localstack:4566",
+    "bucket_name": "simpla-cache",
+    "access_key_id": "test",
+    "secret_access_key": "test",
+    "region": "us-east-1"
+  },
   "gemini": {
     "models": [
       "gemini-2.0-flash-lite",
