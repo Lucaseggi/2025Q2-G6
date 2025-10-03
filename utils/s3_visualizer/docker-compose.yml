@@ -2,8 +2,8 @@ services:
   s3-visualizer:
     build: .
     container_name: s3-visualizer
-    stdin_open: true
-    tty: true
+    ports:
+      - "5001:5001"
     networks:
       - rag-network
 

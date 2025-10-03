@@ -1,6 +1,7 @@
 {
-  "endpoint": "http://localhost:4566",
+  "endpoint": "http://localstack:4566",
   "access_key": "test",
   "secret_key": "test",
-  "region": "us-east-1"
+  "region": "us-east-1",
+  "bucket": "simpla-cache"
 }
