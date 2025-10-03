@@ -91,3 +91,5 @@ terraform/terraform.exe
 02-processor/test_requirements.txt 
 02-processor/test_runner.py 
 02-processor/test_summary_generator.py
+
+utils/rebuilder/norms_dump

@@ -1,0 +1,11 @@
+services:
+  migrator:
+    build: .
+    container_name: migrator
+    networks:
+      - rag-network
+
+networks:
+  rag-network:
+    external: true
+    name: simpla_data_extraction_rag-network
