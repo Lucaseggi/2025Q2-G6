@@ -19,6 +19,8 @@ public class Article {
     @JsonProperty("articles")
     private List<Article> childArticles = new ArrayList<>();
 
+    private Long parentArticleId;
+
     public Article() {}
 
     public Article(Long id, String ordinal, String body, Integer orderIndex) {
@@ -74,5 +76,13 @@ public class Article {
             this.childArticles = new ArrayList<>();
         }
         this.childArticles.add(article);
+    }
+
+    public Long getParentArticleId() {
+        return parentArticleId;
+    }
+
+    public void setParentArticleId(Long parentArticleId) {
+        this.parentArticleId = parentArticleId;
     }
 }

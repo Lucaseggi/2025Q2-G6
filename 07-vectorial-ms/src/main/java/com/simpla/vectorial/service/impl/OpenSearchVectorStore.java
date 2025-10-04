@@ -297,19 +297,17 @@ public class OpenSearchVectorStore implements VectorStoreService {
                           }
                         }
                       },
-                      "infoleg_id": {"type": "long"},
+                      "source": {"type": "keyword"},
+                      "source_id": {"type": "long"},
+                      
+                      "document_type": {"type": "keyword"},
+                      "document_id": {"type": "long"},
+                      
                       "tipo_norma": {"type": "keyword"},
                       "jurisdiccion": {"type": "keyword"},
-                      "source": {"type": "keyword"},
-                      "document_type": {"type": "keyword"},
-                      "division_index": {"type": "long"},
-                      "article_index": {"type": "long"},
-                      "division_name": {"type": "text"},
-                      "division_ordinal": {"type": "keyword"},
-                      "division_title": {"type": "text"},
-                      "article_ordinal": {"type": "keyword"},
-                      "division_order": {"type": "long"},
-                      "article_order": {"type": "long"}
+                      "fecha_de_sancion": {"type": "keyword"},
+                      "nro_boletin": {"type": "long"},
+                      "titulo_sumario": {"type": "keyword"}
                     }
                   }
                 }

@@ -145,19 +145,27 @@ public class NormaRepository {
         Map<Long, Division> divisionMap = new HashMap<>();
         List<Division> rootDivisions = new ArrayList<>();
 
-        // First pass: create map and identify root divisions
+        // First pass: create map of all divisions by ID
         for (Division division : allDivisions) {
             divisionMap.put(division.getId(), division);
         }
 
-        // Second pass: build hierarchy and load articles
+        // Second pass: build hierarchy, load articles, and identify root divisions
         for (Division division : allDivisions) {
             // Load articles for this division
             loadArticlesForDivision(division, division.getId());
 
-            // For now, we'll assume all divisions are root divisions
-            // In a more complex scenario, you'd check parent_division_id
-            rootDivisions.add(division);
+            // Check if this division has a parent
+            if (division.getParentDivisionId() != null) {
+                // This is a child division - add it to its parent
+                Division parent = divisionMap.get(division.getParentDivisionId());
+                if (parent != null) {
+                    parent.addChildDivision(division);
+                }
+            } else {
+                // This is a root division
+                rootDivisions.add(division);
+            }
         }
 
         // Set structured data on norma
@@ -170,7 +178,7 @@ public class NormaRepository {
 
     private List<Division> loadDivisionsForNorma(Long normaId) throws SQLException {
         String sql = """
-            SELECT d.id, d.name, d.ordinal, d.title, d.body, d.order_index
+            SELECT d.id, d.name, d.ordinal, d.title, d.body, d.order_index, d.parent_division_id
             FROM divisions d
             WHERE d.norma_id = ?
             ORDER BY d.order_index, d.id
@@ -195,6 +203,11 @@ public class NormaRepository {
                     Integer orderIndex = rs.getInt("order_index");
                     if (!rs.wasNull()) {
                         division.setOrderIndex(orderIndex);
+                    }
+
+                    Long parentDivisionId = rs.getLong("parent_division_id");
+                    if (!rs.wasNull()) {
+                        division.setParentDivisionId(parentDivisionId);
                     }
 
                     divisions.add(division);
@@ -319,10 +332,10 @@ public class NormaRepository {
         }
     }
 
-    public Long insertDivision(Long normaId, Division division) throws SQLException {
+    public Long insertDivision(Long normaId, Long parentDivisionId, Division division) throws SQLException {
         String sql = """
-            INSERT INTO divisions (norma_id, name, ordinal, title, body, order_index)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO divisions (norma_id, parent_division_id, name, ordinal, title, body, order_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """;
 
@@ -330,15 +343,20 @@ public class NormaRepository {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setLong(1, normaId);
-            stmt.setString(2, division.getName());
-            stmt.setString(3, division.getOrdinal());
-            stmt.setString(4, division.getTitle());
-            stmt.setString(5, division.getBody());
+            if (parentDivisionId != null) {
+                stmt.setLong(2, parentDivisionId);
+            } else {
+                stmt.setNull(2, Types.INTEGER);
+            }
+            stmt.setString(3, division.getName());
+            stmt.setString(4, division.getOrdinal());
+            stmt.setString(5, division.getTitle());
+            stmt.setString(6, division.getBody());
 
             if (division.getOrderIndex() != null) {
-                stmt.setInt(6, division.getOrderIndex());
+                stmt.setInt(7, division.getOrderIndex());
             } else {
-                stmt.setNull(6, Types.INTEGER);
+                stmt.setNull(7, Types.INTEGER);
             }
 
             try (ResultSet rs = stmt.executeQuery()) {
@@ -356,10 +374,10 @@ public class NormaRepository {
         }
     }
 
-    public Long insertArticle(Long divisionId, Article article) throws SQLException {
+    public Long insertArticle(Long divisionId, Long parentArticleId, Article article) throws SQLException {
         String sql = """
-            INSERT INTO articles (division_id, ordinal, body, order_index)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO articles (division_id, parent_article_id, ordinal, body, order_index)
+            VALUES (?, ?, ?, ?, ?)
             RETURNING id
             """;
 
@@ -367,13 +385,17 @@ public class NormaRepository {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setLong(1, divisionId);
-            stmt.setString(2, article.getOrdinal());
-            stmt.setString(3, article.getBody());
+            if (parentArticleId != null) {
+                stmt.setLong(2, parentArticleId);
+            } else {
+                stmt.setNull(2, Types.INTEGER);
+            }            stmt.setString(3, article.getOrdinal());
+            stmt.setString(4, article.getBody());
 
             if (article.getOrderIndex() != null) {
-                stmt.setInt(4, article.getOrderIndex());
+                stmt.setInt(5, article.getOrderIndex());
             } else {
-                stmt.setNull(4, Types.INTEGER);
+                stmt.setNull(5, Types.INTEGER);
             }
 
             try (ResultSet rs = stmt.executeQuery()) {
@@ -387,68 +409,89 @@ public class NormaRepository {
         }
     }
 
-    public Long insertCompleteNorma(Norma norma) throws SQLException {
-        // Insert the norma first
-        Long normaId = insertNorma(norma);
-
-        // Insert structured divisions if present
-        if (norma.getStructuredTextoNorma() != null &&
-            norma.getStructuredTextoNorma().getDivisions() != null) {
-            for (Division division : norma.getStructuredTextoNorma().getDivisions()) {
-                insertDivision(normaId, division);
-            }
-        }
-
-        if (norma.getStructuredTextoNormaActualizado() != null &&
-            norma.getStructuredTextoNormaActualizado().getDivisions() != null) {
-            for (Division division : norma.getStructuredTextoNormaActualizado().getDivisions()) {
-                insertDivision(normaId, division);
-            }
-        }
-
-        return normaId;
-    }
-
     public InsertionResult insertCompleteNormaWithPks(Norma norma) throws SQLException {
         InsertionResult result = new InsertionResult();
 
-        // Insert the norma first
         Long normaId = insertNorma(norma);
         result.setNormaId(normaId);
 
-        // Insert structured divisions if present
-        if (norma.getStructuredTextoNorma() != null &&
-            norma.getStructuredTextoNorma().getDivisions() != null) {
-            insertDivisionsWithPks(normaId, norma.getStructuredTextoNorma().getDivisions(), result, "texto_norma");
-        }
-
         if (norma.getStructuredTextoNormaActualizado() != null &&
             norma.getStructuredTextoNormaActualizado().getDivisions() != null) {
-            insertDivisionsWithPks(normaId, norma.getStructuredTextoNormaActualizado().getDivisions(), result, "texto_norma_actualizado");
+            insertDivisionsWithPks(normaId, norma.getStructuredTextoNormaActualizado().getDivisions(), result);
+        } else if (norma.getStructuredTextoNorma() != null &&
+            norma.getStructuredTextoNorma().getDivisions() != null) {
+            insertDivisionsWithPks(normaId, norma.getStructuredTextoNorma().getDivisions(), result);
         }
+
 
         return result;
     }
 
-    private void insertDivisionsWithPks(Long normaId, List<Division> divisions, InsertionResult result, String source) throws SQLException {
+    private void insertDivisionsWithPks(
+            Long normaId,
+            List<Division> divisions,
+            InsertionResult result
+    ) throws SQLException {
         for (int i = 0; i < divisions.size(); i++) {
             Division division = divisions.get(i);
-            Long divisionId = insertDivision(normaId, division);
+            Long divisionId = insertDivision(normaId, null, division);
 
-            // Create a unique key for this division
-            String divisionKey = String.format("%s_division_%d", source, i);
+            assert i + 1== division.getOrderIndex();
+            String divisionKey = String.format("d%d", i + 1);
             result.addDivisionPk(divisionKey, divisionId);
 
-            // Insert articles for this division
             if (division.getArticles() != null) {
-                for (int j = 0; j < division.getArticles().size(); j++) {
-                    Article article = division.getArticles().get(j);
-                    Long articleId = insertArticle(divisionId, article);
+                insertArticlesRecursive(normaId, divisionId, null, division.getArticles(), result, divisionKey);
+            }
 
-                    // Create a unique key for this article
-                    String articleKey = String.format("%s_division_%d_article_%d", source, i, j);
-                    result.addArticlePk(articleKey, articleId);
-                }
+            if (division.getChildDivisions() != null) {
+                insertDivisionsRecursive(normaId, divisionId, division.getChildDivisions(), result, divisionKey);
+            }
+        }
+    }
+
+    private void insertDivisionsRecursive(
+            Long normaId,
+            Long parentDivisionId,
+            List<Division> subDivisions,
+            InsertionResult result,
+            String parentKey
+    ) throws SQLException {
+        for (int i = 0; i < subDivisions.size(); i++) {
+            Division sub = subDivisions.get(i);
+            Long subDivisionId = insertDivision(normaId, parentDivisionId, sub);
+
+            assert i + 1== sub.getOrderIndex();
+            String subDivisionKey = String.format("%s_d%d", parentKey, i + 1);
+            result.addDivisionPk(subDivisionKey, subDivisionId);
+
+            if (sub.getArticles() != null) {
+                insertArticlesRecursive(normaId, subDivisionId, null, sub.getArticles(), result, subDivisionKey);
+            }
+            if (sub.getChildDivisions() != null) {
+                insertDivisionsRecursive(normaId, subDivisionId, sub.getChildDivisions(), result, subDivisionKey);
+            }
+        }
+    }
+
+    private void insertArticlesRecursive(
+            Long normaId,
+            Long parentDivisionId,
+            Long parentArticleId,
+            List<Article> articles,
+            InsertionResult result,
+            String parentKey
+    ) throws SQLException {
+        for (int j = 0; j < articles.size(); j++) {
+            Article article = articles.get(j);
+            Long articleId = insertArticle(parentDivisionId, parentArticleId, article);
+
+            assert j + 1== article.getOrderIndex();
+            String articleKey = String.format("%s_a%d", parentKey, j + 1);
+            result.addArticlePk(articleKey, articleId);
+
+            if (article.getChildArticles() != null) {
+                insertArticlesRecursive(normaId, parentDivisionId, articleId, article.getChildArticles(), result, articleKey);
             }
         }
     }

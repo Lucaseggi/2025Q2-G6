@@ -13,6 +13,7 @@ service VectorialService {
 
 message StoreRequest {
   string data = 1;
+  string pk_mapping_json = 2;
 }
 
 message StoreResponse {

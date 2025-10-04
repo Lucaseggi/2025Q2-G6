@@ -20,7 +20,8 @@ public class RelationalClient {
     }
 
     public void store(String data) {
-        System.out.println("Calling store() with data: " + data);
+        System.out.println("Calling store() with data length: " + data.length());
+        System.out.println("Data preview: " + (data.length() > 200 ? data.substring(0, 200) + "..." : data));
 
         StoreRequest request = StoreRequest.newBuilder()
                 .setData(data)
@@ -34,7 +35,11 @@ public class RelationalClient {
             return;
         }
 
-        System.out.println("Response - Success: " + response.getSuccess() + ", Message: " + response.getMessage());
+        System.out.println("\n=== STORE RESPONSE ===");
+        System.out.println("Success: " + response.getSuccess());
+        System.out.println("Message: " + response.getMessage());
+        System.out.println("PK Mapping JSON: " + response.getPkMappingJson());
+        System.out.println("=====================\n");
     }
 
     public void reconstructNorm(int infolegId) {
@@ -69,22 +74,32 @@ public class RelationalClient {
 
     public static void main(String[] args) throws Exception {
         String target = "localhost:50051";
+        String mode = "reconstruct"; // "store" or "reconstruct"
         int infolegId = 183532; // Default from demo data
+        String jsonFile = null;
 
+        // Parse arguments: mode [infoleg_id|json_file] [target]
         if (args.length > 0) {
-            try {
-                infolegId = Integer.parseInt(args[0]);
-            } catch (NumberFormatException e) {
-                System.err.println("Invalid infoleg_id: " + args[0] + ". Using default: " + infolegId);
-            }
+            mode = args[0];
         }
 
         if (args.length > 1) {
-            target = args[1];
+            if (mode.equals("store")) {
+                jsonFile = args[1];
+            } else {
+                try {
+                    infolegId = Integer.parseInt(args[1]);
+                } catch (NumberFormatException e) {
+                    System.err.println("Invalid infoleg_id: " + args[1] + ". Using default: " + infolegId);
+                }
+            }
+        }
+
+        if (args.length > 2) {
+            target = args[2];
         }
 
         System.out.println("Connecting to relational-ms at: " + target);
-        System.out.println("Testing ReconstructNorm with infoleg_id: " + infolegId);
 
         ManagedChannel channel = ManagedChannelBuilder.forTarget(target)
                 .usePlaintext()
@@ -93,8 +108,23 @@ public class RelationalClient {
         try {
             RelationalClient client = new RelationalClient(channel);
 
-            // Test the ReconstructNorm method
-            client.reconstructNorm(infolegId);
+            if (mode.equals("store")) {
+                if (jsonFile == null) {
+                    System.err.println("Error: JSON file path required for store mode");
+                    System.err.println("Usage: RelationalClient store <json_file> [target]");
+                    return;
+                }
+
+                System.out.println("Reading JSON from file: " + jsonFile);
+                String jsonData = new String(java.nio.file.Files.readAllBytes(
+                    java.nio.file.Paths.get(jsonFile)
+                ));
+
+                client.store(jsonData);
+            } else {
+                System.out.println("Testing ReconstructNorm with infoleg_id: " + infolegId);
+                client.reconstructNorm(infolegId);
+            }
 
         } finally {
             channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);

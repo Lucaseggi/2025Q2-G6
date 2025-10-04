@@ -17,4 +17,5 @@ message StoreRequest {
 message StoreResponse {
   bool success = 1;
   string message = 2;
+  string pk_mapping_json = 3;
 }
