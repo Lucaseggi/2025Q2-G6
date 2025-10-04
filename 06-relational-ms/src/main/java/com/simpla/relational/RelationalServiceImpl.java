@@ -5,7 +5,12 @@ import com.simpla.relational.proto.StoreRequest;
 import com.simpla.relational.proto.StoreResponse;
 import com.simpla.relational.proto.ReconstructNormRequest;
 import com.simpla.relational.proto.ReconstructNormResponse;
+import com.simpla.relational.proto.GetBatchRequest;
+import com.simpla.relational.proto.GetBatchResponse;
+import com.simpla.relational.proto.EntityPair;
 import com.simpla.relational.model.Norma;
+import com.simpla.relational.model.Division;
+import com.simpla.relational.model.Article;
 import com.simpla.relational.repository.NormaRepository;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -17,6 +22,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServiceImplBase {
 
@@ -162,6 +169,72 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
             ReconstructNormResponse response = ReconstructNormResponse.newBuilder()
                     .setSuccess(false)
                     .setMessage("Error reconstructing norma: " + e.getMessage())
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        }
+    }
+
+    @Override
+    public void getBatch(GetBatchRequest request, StreamObserver<GetBatchResponse> responseObserver) {
+        System.out.println("GetBatch method called with " + request.getEntitiesCount() + " entities");
+
+        try {
+            List<Division> divisions = new ArrayList<>();
+            List<Article> articles = new ArrayList<>();
+
+            // Process each entity pair
+            for (EntityPair entityPair : request.getEntitiesList()) {
+                String type = entityPair.getType();
+                long id = entityPair.getId();
+
+                System.out.println("Processing entity: type=" + type + ", id=" + id);
+
+                if ("division".equalsIgnoreCase(type)) {
+                    Division division = normaRepository.findDivisionById(id);
+                    if (division != null) {
+                        divisions.add(division);
+                    } else {
+                        System.out.println("Division not found with id: " + id);
+                    }
+                } else if ("article".equalsIgnoreCase(type)) {
+                    Article article = normaRepository.findArticleById(id);
+                    if (article != null) {
+                        articles.add(article);
+                    } else {
+                        System.out.println("Article not found with id: " + id);
+                    }
+                } else {
+                    System.out.println("Unknown entity type: " + type);
+                }
+            }
+
+            // Convert to JSON
+            String divisionsJson = objectMapper.writeValueAsString(divisions);
+            String articlesJson = objectMapper.writeValueAsString(articles);
+
+            System.out.println("Retrieved " + divisions.size() + " divisions and " + articles.size() + " articles");
+
+            GetBatchResponse response = GetBatchResponse.newBuilder()
+                    .setSuccess(true)
+                    .setMessage("Retrieved " + divisions.size() + " divisions and " + articles.size() + " articles")
+                    .setDivisionsJson(divisionsJson)
+                    .setArticlesJson(articlesJson)
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
+        } catch (Exception e) {
+            System.err.println("Error retrieving batch entities: " + e.getMessage());
+            e.printStackTrace();
+
+            GetBatchResponse response = GetBatchResponse.newBuilder()
+                    .setSuccess(false)
+                    .setMessage("Error retrieving batch entities: " + e.getMessage())
+                    .setDivisionsJson("[]")
+                    .setArticlesJson("[]")
                     .build();
 
             responseObserver.onNext(response);

@@ -495,4 +495,170 @@ public class NormaRepository {
             }
         }
     }
+
+    public Division findDivisionById(Long divisionId) throws SQLException {
+        String sql = """
+            SELECT d.id, d.norma_id, d.name, d.ordinal, d.title, d.body, d.order_index, d.parent_division_id
+            FROM divisions d
+            WHERE d.id = ?
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, divisionId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    Division division = new Division();
+                    division.setId(rs.getLong("id"));
+                    division.setName(rs.getString("name"));
+                    division.setOrdinal(rs.getString("ordinal"));
+                    division.setTitle(rs.getString("title"));
+                    division.setBody(rs.getString("body"));
+
+                    Integer orderIndex = rs.getInt("order_index");
+                    if (!rs.wasNull()) {
+                        division.setOrderIndex(orderIndex);
+                    }
+
+                    Long parentDivisionId = rs.getLong("parent_division_id");
+                    if (!rs.wasNull()) {
+                        division.setParentDivisionId(parentDivisionId);
+                    }
+
+                    // Load articles for this division
+                    loadArticlesForDivision(division, division.getId());
+
+                    // Load child divisions recursively
+                    loadChildDivisions(division, division.getId());
+
+                    return division;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private void loadChildDivisions(Division parentDivision, Long parentDivisionId) throws SQLException {
+        String sql = """
+            SELECT d.id, d.name, d.ordinal, d.title, d.body, d.order_index, d.parent_division_id
+            FROM divisions d
+            WHERE d.parent_division_id = ?
+            ORDER BY d.order_index, d.id
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, parentDivisionId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Division childDivision = new Division();
+                    childDivision.setId(rs.getLong("id"));
+                    childDivision.setName(rs.getString("name"));
+                    childDivision.setOrdinal(rs.getString("ordinal"));
+                    childDivision.setTitle(rs.getString("title"));
+                    childDivision.setBody(rs.getString("body"));
+
+                    Integer orderIndex = rs.getInt("order_index");
+                    if (!rs.wasNull()) {
+                        childDivision.setOrderIndex(orderIndex);
+                    }
+
+                    Long parentId = rs.getLong("parent_division_id");
+                    if (!rs.wasNull()) {
+                        childDivision.setParentDivisionId(parentId);
+                    }
+
+                    // Load articles and child divisions recursively
+                    loadArticlesForDivision(childDivision, childDivision.getId());
+                    loadChildDivisions(childDivision, childDivision.getId());
+
+                    parentDivision.addChildDivision(childDivision);
+                }
+            }
+        }
+    }
+
+    public Article findArticleById(Long articleId) throws SQLException {
+        String sql = """
+            SELECT a.id, a.division_id, a.parent_article_id, a.ordinal, a.body, a.order_index
+            FROM articles a
+            WHERE a.id = ?
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, articleId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    Article article = new Article();
+                    article.setId(rs.getLong("id"));
+                    article.setOrdinal(rs.getString("ordinal"));
+                    article.setBody(rs.getString("body"));
+
+                    Integer orderIndex = rs.getInt("order_index");
+                    if (!rs.wasNull()) {
+                        article.setOrderIndex(orderIndex);
+                    }
+
+                    Long parentArticleId = rs.getLong("parent_article_id");
+                    if (!rs.wasNull()) {
+                        article.setParentArticleId(parentArticleId);
+                    }
+
+                    // Load child articles recursively
+                    loadChildArticles(article, article.getId(), rs.getLong("division_id"));
+
+                    return article;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private void loadChildArticles(Article parentArticle, Long parentArticleId, Long divisionId) throws SQLException {
+        String sql = """
+            SELECT a.id, a.ordinal, a.body, a.order_index, a.parent_article_id
+            FROM articles a
+            WHERE a.parent_article_id = ?
+            ORDER BY a.order_index, a.id
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, parentArticleId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Article childArticle = new Article();
+                    childArticle.setId(rs.getLong("id"));
+                    childArticle.setOrdinal(rs.getString("ordinal"));
+                    childArticle.setBody(rs.getString("body"));
+
+                    Integer orderIndex = rs.getInt("order_index");
+                    if (!rs.wasNull()) {
+                        childArticle.setOrderIndex(orderIndex);
+                    }
+
+                    Long parentId = rs.getLong("parent_article_id");
+                    if (!rs.wasNull()) {
+                        childArticle.setParentArticleId(parentId);
+                    }
+
+                    // Recursively load child articles
+                    loadChildArticles(childArticle, childArticle.getId(), divisionId);
+
+                    parentArticle.addChildArticle(childArticle);
+                }
+            }
+        }
+    }
 }

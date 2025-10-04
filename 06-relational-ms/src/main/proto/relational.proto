@@ -9,6 +9,7 @@ option java_outer_classname = "RelationalProto";
 service RelationalService {
   rpc Store(StoreRequest) returns (StoreResponse);
   rpc ReconstructNorm(ReconstructNormRequest) returns (ReconstructNormResponse);
+  rpc GetBatch(GetBatchRequest) returns (GetBatchResponse);
 }
 
 message StoreRequest {
@@ -29,4 +30,20 @@ message ReconstructNormResponse {
   bool success = 1;
   string message = 2;
   string norma_json = 3;
+}
+
+message EntityPair {
+  string type = 1;  // "article" or "division"
+  int64 id = 2;
+}
+
+message GetBatchRequest {
+  repeated EntityPair entities = 1;
+}
+
+message GetBatchResponse {
+  bool success = 1;
+  string message = 2;
+  string divisions_json = 3;
+  string articles_json = 4;
 }
