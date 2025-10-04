@@ -42,6 +42,16 @@ class GeminiConfig:
 
 
 @dataclass
+class S3Config:
+    """S3 configuration"""
+    endpoint: str
+    bucket_name: str
+    access_key_id: str
+    secret_access_key: str
+    region: str
+
+
+@dataclass
 class ProcessingConfig:
     """Processing configuration"""
     batch_size: int
@@ -84,6 +94,16 @@ class ProcessorSettings:
             password=os.getenv("RABBITMQ_PASSWORD", "admin123"),
             vhost=rabbitmq_data["vhost"],
             queues=rabbitmq_data["queues"]
+        )
+
+        # Initialize S3 config
+        s3_data = config_data["s3"]
+        self.s3 = S3Config(
+            endpoint=s3_data["endpoint"],
+            bucket_name=s3_data["bucket_name"],
+            access_key_id=s3_data["access_key_id"],
+            secret_access_key=s3_data["secret_access_key"],
+            region=s3_data["region"]
         )
 
         # Initialize Gemini config (API keys from environment)

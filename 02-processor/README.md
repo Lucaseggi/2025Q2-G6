@@ -85,3 +85,22 @@ curl -X POST http://processor:8004/replay/batch \
 # Check cache info
 curl http://processor:8004/cache/info/183532
 ```
+
+## Testing
+
+**Run all tests:**
+```bash
+docker run --rm --env-file .env --user $(id -u):$(id -g) -v "$PWD:/host" -v "$PWD/prompts:/app/prompts:ro" --workdir /host processor-test python test_runner.py
+```
+
+**Render htmls:**
+```bash
+docker run --rm --env-file .env --user $(id -u):$(id -g) -v "$PWD:/host" --workdir /host processor-test python test_diff_viewer.py
+```
+
+**Run single test:**
+```bash
+docker run --rm --env-file .env --user $(id -u):$(id -g) -v "$PWD:/host" -v "$PWD/prompts:/app/prompts:ro" --workdir /host processor-test python test_runner.py --test-id 180781
+```
+
+Results include `actual.json`, `comparison_report.txt`, and `visual_diff.html` in each test directory.

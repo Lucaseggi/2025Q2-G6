@@ -5,7 +5,7 @@ Tu tarea es transformar normas legales (leyes, decretos, resoluciones, disposici
 {
   "divisions": [
     {
-      "name": "Nombre de la división explicito en el texto (ej: 'Título', 'Capítulo', 'Sección'), en caso de que no los haya utilizar divisiones genéricas ('Preambulo', 'Consideraciones', 'Cuerpo Principal', 'Postambulo', 'Firmas')",
+      "name": "Nombre de la división explícito en el texto (ej: 'Título', 'Capítulo', 'Sección'). Si no hay divisiones clásicas, usar divisiones genéricas ('Preambulo', 'Consideraciones', 'Cuerpo Principal', 'Postambulo', 'Firmas'). Para secciones especiales usar 'Antecedentes Normativos'",
       "ordinal": "Número, letra o identificador si lo hubiera (ej: 1, I, III, 5 bis). Si no existe, string vacío",
       "title": "Encabezado completo de la división, suele referir a la temática de la división.",
       "body": "Texto principal de la división, puede ser una simple introducción o un texto extenso.",
@@ -43,47 +43,88 @@ Tu tarea es transformar normas legales (leyes, decretos, resoluciones, disposici
 
 ### 2. Reconocimiento de divisiones
 
-Existen **dos posibilidades**:
+Existen **tres tipos de divisiones**:
 
 1. **Divisiones clásicas presentes en el texto**:
 
    * *Parte, Libro, Título, Capítulo, Sección*.
-   * Se deben usar exactamente como aparecen.
+   * Se deben usar exactamente como aparecen en el documento.
+   * Estas divisiones **SÍ pueden repetirse** (puede haber múltiples Capítulos, Títulos, etc.).
 
-2. **No hay divisiones clásicas**:
+2. **Divisiones genéricas** (cuando NO hay divisiones clásicas):
 
    * Se deben crear divisiones **genéricas** para organizar el texto:
      *Preambulo, Consideraciones, Cuerpo Principal, Postambulo, Firmas*.
-   * Estas palabras pueden aparecer como separadores en el texto, pero si no existen divisiones explícitas deben inferirse igualmente.
+   * **RESTRICCIÓN CRÍTICA**: Cada división genérica puede aparecer **UNA SOLA VEZ** en todo el documento.
+   * **NUNCA** crear duplicados como dos "Preambulo" o dos "Postambulo".
+   * Si encuentras contenido que parece pertenecer a una división genérica ya existente, debes:
+     - Fusionar el contenido en la división existente (agregando al `body` o a los `articles`), O
+     - Crear una subdivisión dentro de ella, O
+     - Usar la división estructurada especial correspondiente si aplica (ver punto 3).
+   * **NUNCA** duplicar la división genérica.
+   * Cuando exista una sección "CONSIDERANDO" con elementos numerados (1), 2), 3), etc.), cada consideración debe tratarse como un **artículo** dentro de la división "Consideraciones", no como texto plano en el `body`.
 
-### 3. Numeración
+3. **Divisiones estructuradas especiales**:
+
+   * **Antecedentes Normativos**: Es una sección que aparece explícitamente en el texto, generalmente al final del documento.
+   * Contiene referencias a modificaciones, suspensiones, derogaciones o aclaraciones de artículos.
+   * Suele estar marcada con el título "Antecedentes Normativos" o similar.
+   * Cuando aparece esta sección:
+     - Crear una división con `"name": "Antecedentes Normativos"`.
+     - El `title` debe contener el encabezado si existe (ej: "Antecedentes Normativos").
+     - Si el contenido tiene ítems con viñetas o guiones (ej: "- Artículo 13, sustituido por..."), cada ítem debe ser un **artículo** en el array `articles`, no texto plano en `body`.
+     - Esta división es **independiente** de las genéricas y puede convivir con ellas.
+
+### 3. Agrupación de contenido en divisiones genéricas
+
+* **Preambulo**: Debe contener TODO el contenido inicial del documento hasta que aparezca "CONSIDERANDO" o el primer artículo numerado.
+  - Incluye: nombre del ministerio, título del decreto/ley, número de expediente, textos introductorios como "POR CUANTO:", "VISTA", referencias iniciales, etc.
+  - TODO este contenido debe ir en el campo `body` del Preambulo, preservando saltos de línea con `\n`.
+  - **IMPORTANTE**: Textos como "Ver Antecedentes Normativos" en el preambulo son solo referencias visuales, NO indican que hay una sección de Antecedentes Normativos allí. La verdadera sección "Antecedentes Normativos" aparece al final del documento con su contenido completo.
+
+* **Consideraciones**: Si existe la sección "CONSIDERANDO", cada consideración numerada es un artículo separado.
+
+* **Cuerpo Principal**: Contiene todos los artículos principales del decreto/ley.
+  - El texto "El Presidente De La Nación Argentina - DECRETA:" puede ir en `title` y `body`.
+
+* **Postambulo**: Texto final de cierre como "Comuníquese, publíquese, dése al Registro Nacional y archívese."
+
+* **Firmas**: Nombres de los firmantes.
+
+* **Antecedentes Normativos**: Sección separada al final con modificaciones/suspensiones de artículos.
+
+### 4. Numeración y agrupación de artículos
 
 * Corregir la secuencia de artículos cuando es evidente un error (ej: 1, 1, 3 → 1, 2, 3).
-* Respetar numeraciones especiales como “Artículo 1 bis” o “Artículo 3 ter”.
-* Si un artículo hace referencia a otro documento (ej: “Artículo 2 de la Ley 25.123”), no modificar numeración ni contenido.
+* Respetar numeraciones especiales como "Artículo 1 bis" o "Artículo 3 ter".
+* **CRÍTICO**: Un artículo puede estar separado en múltiples líneas/párrafos. Los artículos se delimitan SOLO por su numeración (ej: "Art. 1", "Art. 2", "Artículo 3").
+* **TODO el texto** que aparece después de un artículo numerado y antes del siguiente artículo numerado pertenece al mismo artículo.
+* Los párrafos sin numeración que siguen a un artículo numerado son **continuación del mismo artículo**, NO artículos separados.
+* Si un artículo hace referencia a otro documento (ej: "Artículo 2 de la Ley 25.123"), no modificar numeración ni contenido.
 
-### 4. Subartículos y literales
+### 5. Subartículos y literales
 
-* Siempre que haya incisos, literales, numerales o viñetas (ej: “a) …”, “b) …”, “1. …”, “I. …”), deben transformarse en **artículos hijos** dentro del array `articles` del artículo padre.
+* Siempre que haya incisos, literales, numerales o viñetas (ej: "a) …", "b) …", "1. …", "I. …"), deben transformarse en **artículos hijos** dentro del array `articles` del artículo padre.
 * **Nunca** dejar estos literales como texto plano en el `body`.
 * El `body` del artículo padre solo debe contener la introducción previa a la lista de subartículos.
+* **IMPORTANTE**: Si después de un inciso (ej: "a)") hay párrafos sin letra/número antes del siguiente inciso, esos párrafos son **continuación del inciso anterior**, NO incisos separados.
 
-### 5. Corrección OCR
+### 6. Corrección OCR
 
 * Corregir errores de digitalización obvios (acentos, puntuación, separación de palabras, confusión de letras/números).
 * No inventar ni omitir texto.
 
-### 6. Campos vacíos
+### 7. Campos vacíos
 
 * Si un atributo no existe (ej: `ordinal` en una división sin numeración), colocar `""`.
 * Nunca omitir claves.
 
-### 7. Firmas y anexos
+### 8. Firmas y anexos
 
 * Las firmas al final del documento se representan como una división con `"name": "Firmas"`.
 * Los anexos se representan como divisiones anidadas.
 
-### 8. Formato de salida
+### 9. Formato de salida
 
 * Devuelve exclusivamente un JSON válido.
 * No incluyas explicaciones ni comentarios fuera del JSON.
@@ -92,15 +133,33 @@ Existen **dos posibilidades**:
 
 ## Ejemplos
 
-### Ejemplo 1 (divisiones genéricas)
+### Ejemplo 1 (divisiones genéricas con consideraciones)
 
 **Entrada:**
 
 ```text
-Decreto –132932 –
+MINISTERIO DE JUSTICIA
+
+Decreto 132932
+
 POR CUANTO:
-Artículo 1° – Apruébase…
-Art. 2° – Publíquese…
+Es necesario regular la actividad.
+
+CONSIDERANDO:
+1) Que es necesario reglamentar la ley;
+2) Que las condiciones actuales lo requieren;
+3) Que corresponde dictar la presente norma,
+
+El Presidente de la Nación
+
+DECRETA:
+
+Artículo 1° – Apruébase la presente normativa.
+
+Este artículo tiene efecto inmediato.
+
+Art. 2° – Publíquese y comuníquese.
+
 CASTILLO. – Carlos Alberto Acevedo
 ```
 
@@ -113,24 +172,48 @@ CASTILLO. – Carlos Alberto Acevedo
       "name": "Preambulo",
       "ordinal": "",
       "title": "",
-      "body": "POR CUANTO:",
+      "body": "MINISTERIO DE JUSTICIA\n\nDecreto 132932\n\nPOR CUANTO:\nEs necesario regular la actividad.",
       "articles": [],
+      "divisions": []
+    },
+    {
+      "name": "Consideraciones",
+      "ordinal": "",
+      "title": "CONSIDERANDO",
+      "body": "",
+      "articles": [
+        {
+          "ordinal": "1",
+          "body": "Que es necesario reglamentar la ley;",
+          "articles": []
+        },
+        {
+          "ordinal": "2",
+          "body": "Que las condiciones actuales lo requieren;",
+          "articles": []
+        },
+        {
+          "ordinal": "3",
+          "body": "Que corresponde dictar la presente norma,",
+          "articles": []
+        }
+      ],
       "divisions": []
     },
     {
       "name": "Cuerpo Principal",
       "ordinal": "",
-      "title": "",
-      "body": "",
+      "title": "El Presidente de la Nación",
+      "body": "DECRETA:",
       "articles": [
         {
           "ordinal": "1",
-          "body": "Apruébase…",
+          "body": "Apruébase la presente normativa.\n\nEste artículo tiene efecto inmediato.",
           "articles": []
         },
         {
           "ordinal": "2",
-          "body": "Publíquese…",
+          "body": "Publíquese y comuníquese.",
           "articles": []
         }
       ],
@@ -150,17 +233,93 @@ CASTILLO. – Carlos Alberto Acevedo
 
 ---
 
-### Ejemplo 2 (divisiones clásicas)
+### Ejemplo 2 (Antecedentes Normativos y continuación de artículos en viñetas)
+
+**Entrada:**
+
+```text
+Artículo 1° — Apruébase la normativa.
+
+Artículo 2° — Publíquese y comuníquese.
+
+Antecedentes Normativos
+
+- Artículo 13, sustituido por art. 1 del Decreto N° 2882/79 B.O. 21/11/1979,
+
+- Artículo 13, suspendida su vigencia por 180 días a partir de la entrada en vigencia del Decreto N°3553/76, por art. 2 del Decreto 3553/76 B.O. 11/1/1976. Posteriormente se prorrogó el citado decreto hasta el 31/12/1978.
+```
+
+**Salida:**
+
+```json
+{
+  "divisions": [
+    {
+      "name": "Cuerpo Principal",
+      "ordinal": "",
+      "title": "",
+      "body": "",
+      "articles": [
+        {
+          "ordinal": "1",
+          "body": "Apruébase la normativa.",
+          "articles": []
+        },
+        {
+          "ordinal": "2",
+          "body": "Publíquese y comuníquese.",
+          "articles": []
+        }
+      ],
+      "divisions": []
+    },
+    {
+      "name": "Antecedentes Normativos",
+      "ordinal": "",
+      "title": "Antecedentes Normativos",
+      "body": "",
+      "articles": [
+        {
+          "ordinal": "",
+          "body": "Artículo 13, sustituido por art. 1 del Decreto N° 2882/79 B.O. 21/11/1979,",
+          "articles": []
+        },
+        {
+          "ordinal": "",
+          "body": "Artículo 13, suspendida su vigencia por 180 días a partir de la entrada en vigencia del Decreto N°3553/76, por art. 2 del Decreto 3553/76 B.O. 11/1/1976. Posteriormente se prorrogó el citado decreto hasta el 31/12/1978.",
+          "articles": []
+        }
+      ],
+      "divisions": []
+    }
+  ]
+}
+```
+
+---
+
+### Ejemplo 3 (divisiones clásicas y continuación de artículos)
 
 **Entrada:**
 
 ```text
 Capítulo I
 Disposiciones Generales
-ARTICULO 1º — Esta ley…
+
+ARTICULO 1º — Esta ley regula el comercio.
+
+Se aplicará en todo el territorio nacional.
+
+ARTICULO 2° — Se exceptúan los siguientes casos.
+
 Capítulo II
 Publicidad y patrocinio
-ARTICULO 5º — Prohíbese…
+
+ARTICULO 5º — Prohíbese la publicidad engañosa.
+
+También están prohibidos los anuncios falsos y las declaraciones inexactas.
+
+Las sanciones serán aplicadas por la autoridad competente.
 ```
 
 **Salida:**
@@ -176,7 +335,12 @@ ARTICULO 5º — Prohíbese…
       "articles": [
         {
           "ordinal": "1",
-          "body": "Esta ley…",
+          "body": "Esta ley regula el comercio.\n\nSe aplicará en todo el territorio nacional.",
+          "articles": []
+        },
+        {
+          "ordinal": "2",
+          "body": "Se exceptúan los siguientes casos.",
           "articles": []
         }
       ],
@@ -190,7 +354,7 @@ ARTICULO 5º — Prohíbese…
       "articles": [
         {
           "ordinal": "5",
-          "body": "Prohíbese…",
+          "body": "Prohíbese la publicidad engañosa.\n\nTambién están prohibidos los anuncios falsos y las declaraciones inexactas.\n\nLas sanciones serán aplicadas por la autoridad competente.",
           "articles": []
         }
       ],
@@ -202,15 +366,20 @@ ARTICULO 5º — Prohíbese…
 
 ---
 
-### Ejemplo 3 (subartículos / incisos)
+### Ejemplo 4 (subartículos / incisos con continuación)
 
 **Entrada:**
 
 ```text
 ARTICULO 2° — Son objetivos de la presente ley:
+
 a) Reducir el consumo de tabaco;
-b) Prevenir la iniciación en el tabaquismo;
-c) Concientizar a la población.
+
+b) Prevenir la iniciación en el tabaquismo, especialmente en menores de edad.
+
+Se deberán implementar campañas educativas.
+
+c) Concientizar a la población sobre los riesgos del tabaquismo.
 ```
 
 **Salida:**
@@ -235,12 +404,12 @@ c) Concientizar a la población.
             },
             {
               "ordinal": "b",
-              "body": "Prevenir la iniciación en el tabaquismo;",
+              "body": "Prevenir la iniciación en el tabaquismo, especialmente en menores de edad.\n\nSe deberán implementar campañas educativas.",
               "articles": []
             },
             {
               "ordinal": "c",
-              "body": "Concientizar a la población.",
+              "body": "Concientizar a la población sobre los riesgos del tabaquismo.",
               "articles": []
             }
           ]

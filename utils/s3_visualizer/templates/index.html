@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S3 Browser - {{ bucket_name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 400px;
+            min-width: 400px;
+            max-width: 400px;
+            background: white;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            background: #2c3e50;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .header .bucket-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header .bucket-selector input {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .header .bucket-selector input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .header .bucket-selector button {
+            padding: 6px 12px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .header .bucket-selector button:hover {
+            background: #2980b9;
+        }
+
+        .search-bar {
+            padding: 12px 20px;
+            border-bottom: 1px solid #ddd;
+            background: white;
+            flex-shrink: 0;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .breadcrumb {
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+            background: #fafafa;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .breadcrumb a {
+            color: #3498db;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb span {
+            margin: 0 5px;
+            color: #999;
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .file-item {
+            padding: 12px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+        }
+
+        .file-item:hover {
+            background: #f8f9fa;
+        }
+
+        .file-item.active {
+            background: #e3f2fd;
+        }
+
+        .file-icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .file-meta {
+            font-size: 12px;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .content-header {
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            background: #fafafa;
+        }
+
+        .content-header h2 {
+            font-size: 16px;
+            color: #555;
+            word-break: break-all;
+        }
+
+        .content-body {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        .content-body pre {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+            font-size: 16px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+        }
+
+        .loading-progress {
+            text-align: center;
+            padding: 20px;
+            color: #3498db;
+            font-weight: 500;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(52, 152, 219, 0.3);
+            border-top-color: #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            padding: 20px;
+            color: #e74c3c;
+            background: #fee;
+            border: 1px solid #fcc;
+            border-radius: 4px;
+            margin: 20px;
+        }
+
+        .stats {
+            padding: 10px 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            background: #fafafa;
+            flex-shrink: 0;
+        }
+
+        .file-item.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="header">
+                <h1>S3 Browser</h1>
+                <div class="bucket-selector">
+                    <input type="text" id="bucketInput" value="{{ bucket_name }}" placeholder="Bucket name">
+                    <button onclick="changeBucket()">Load</button>
+                </div>
+            </div>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search by prefix (e.g., 'page' or '2024')..." oninput="filterFiles()">
+            </div>
+            <div class="breadcrumb" id="breadcrumb">
+                <a onclick="navigateTo('')">Root</a>
+            </div>
+            <div class="file-list" id="fileList">
+                <div class="loading">Loading...</div>
+            </div>
+            <div class="stats" id="stats"></div>
+        </div>
+        <div class="content-area">
+            <div class="content-header" id="contentHeader" style="display: none;">
+                <h2 id="contentTitle"></h2>
+            </div>
+            <div class="content-body" id="contentBody">
+                <div class="empty-state">Select a file to view its content</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPrefix = '';
+        let currentFile = null;
+        let currentBucket = '{{ bucket_name }}';
+        let allFiles = [];
+        let allFolders = [];
+        let nextToken = null;
+        let isLoading = false;
+        let hasMore = false;
+        let searchTimeout = null;
+        let isSearchMode = false;
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function formatDate(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleString();
+        }
+
+        function changeBucket() {
+            const newBucket = document.getElementById('bucketInput').value.trim();
+            if (!newBucket) {
+                alert('Please enter a bucket name');
+                return;
+            }
+            currentBucket = newBucket;
+            navigateTo('');
+        }
+
+        function filterFiles() {
+            const searchTerm = document.getElementById('searchInput').value.trim();
+
+            // Clear existing timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+
+            // If search is empty, go back to browsing mode
+            if (!searchTerm) {
+                isSearchMode = false;
+                navigateTo(currentPrefix);
+                return;
+            }
+
+            // Debounce search
+            searchTimeout = setTimeout(() => {
+                performSearch(searchTerm);
+            }, 500);
+        }
+
+        function performSearch(query) {
+            const fileList = document.getElementById('fileList');
+            const stats = document.getElementById('stats');
+
+            isSearchMode = true;
+            fileList.innerHTML = '<div class="loading-progress"><div class="loading-spinner"></div>Searching...</div>';
+            stats.textContent = 'Searching...';
+
+            fetch(`/api/search?query=${encodeURIComponent(query)}&prefix=${encodeURIComponent(currentPrefix)}&bucket=${encodeURIComponent(currentBucket)}&max_keys=500`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        fileList.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                        stats.textContent = '';
+                        return;
+                    }
+
+                    allFiles = data.files;
+                    allFolders = data.folders;
+
+                    let html = '';
+
+                    // Add folders
+                    allFolders.forEach(folder => {
+                        html += `
+                            <div class="file-item" onclick="navigateTo('${folder.full_path}')">
+                                <div class="file-icon">📁</div>
+                                <div class="file-info">
+                                    <div class="file-name">${escapeHtml(folder.name)}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    // Add files
+                    allFiles.forEach(file => {
+                        const icon = file.name.endsWith('.json') ? '📄' : '📝';
+                        html += `
+                            <div class="file-item" onclick="viewFile('${escapeHtml(file.full_path)}', this)">
+                                <div class="file-icon">${icon}</div>
+                                <div class="file-info">
+                                    <div class="file-name">${escapeHtml(file.name)}</div>
+                                    <div class="file-meta">${formatSize(file.size)} • ${formatDate(file.last_modified)}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    if (html === '') {
+                        html = '<div class="empty-state">No results starting with "' + escapeHtml(query) + '"</div>';
+                    }
+
+                    fileList.innerHTML = html;
+
+                    // Update stats
+                    const moreText = data.has_more ? ' (showing first 500)' : '';
+                    stats.textContent = `Found ${data.total_found} item(s) starting with "${query}"${moreText}`;
+                })
+                .catch(error => {
+                    fileList.innerHTML = `<div class="error">Error searching: ${error.message}</div>`;
+                    stats.textContent = '';
+                });
+        }
+
+        function updateBreadcrumb(prefix) {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (!prefix) {
+                breadcrumb.innerHTML = '<a onclick="navigateTo(\'\')">Root</a>';
+                return;
+            }
+
+            const parts = prefix.split('/').filter(p => p);
+            let html = '<a onclick="navigateTo(\'\')">Root</a>';
+            let path = '';
+
+            parts.forEach((part, index) => {
+                path += part + '/';
+                html += ' <span>/</span> ';
+                if (index === parts.length - 1) {
+                    html += `<span>${part}</span>`;
+                } else {
+                    html += `<a onclick="navigateTo('${path}')">${part}</a>`;
+                }
+            });
+
+            breadcrumb.innerHTML = html;
+        }
+
+        function navigateTo(prefix) {
+            currentPrefix = prefix;
+            currentFile = null;
+            isSearchMode = false;
+            updateBreadcrumb(prefix);
+
+            // Reset pagination
+            allFolders = [];
+            allFiles = [];
+            nextToken = null;
+            hasMore = false;
+
+            // Clear search
+            document.getElementById('searchInput').value = '';
+
+            // Clear content area
+            document.getElementById('contentHeader').style.display = 'none';
+            document.getElementById('contentBody').innerHTML = '<div class="empty-state">Select a file to view its content</div>';
+
+            loadFiles();
+        }
+
+        function loadFiles() {
+            if (isLoading || isSearchMode) return;
+
+            const fileList = document.getElementById('fileList');
+            const stats = document.getElementById('stats');
+
+            isLoading = true;
+
+            // First load - clear the list
+            if (!nextToken) {
+                fileList.innerHTML = '<div class="loading-progress"><div class="loading-spinner"></div>Loading...</div>';
+                stats.textContent = 'Loading...';
+            }
+
+            const url = `/api/list?prefix=${encodeURIComponent(currentPrefix)}&bucket=${encodeURIComponent(currentBucket)}${nextToken ? '&continuation_token=' + encodeURIComponent(nextToken) : ''}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        fileList.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                        stats.textContent = '';
+                        isLoading = false;
+                        return;
+                    }
+
+                    // Append new data
+                    allFolders = allFolders.concat(data.folders);
+                    allFiles = allFiles.concat(data.files);
+                    nextToken = data.next_token;
+                    hasMore = data.has_more;
+
+                    renderFileList();
+                    updateStats();
+
+                    isLoading = false;
+                })
+                .catch(error => {
+                    fileList.innerHTML = `<div class="error">Error loading files: ${error.message}</div>`;
+                    stats.textContent = '';
+                    isLoading = false;
+                });
+        }
+
+        function renderFileList() {
+            const fileList = document.getElementById('fileList');
+            let html = '';
+
+            // Add folders
+            allFolders.forEach(folder => {
+                html += `
+                    <div class="file-item" onclick="navigateTo('${folder.full_path}')">
+                        <div class="file-icon">📁</div>
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtml(folder.name)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Add files
+            allFiles.forEach(file => {
+                const icon = file.name.endsWith('.json') ? '📄' : '📝';
+                html += `
+                    <div class="file-item" onclick="viewFile('${escapeHtml(file.full_path)}', this)">
+                        <div class="file-icon">${icon}</div>
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtml(file.name)}</div>
+                            <div class="file-meta">${formatSize(file.size)} • ${formatDate(file.last_modified)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (html === '') {
+                html = '<div class="empty-state">No files or folders</div>';
+            } else if (hasMore) {
+                html += '<div class="loading-progress" style="cursor: pointer;" onclick="loadMore()">Load more...</div>';
+            }
+
+            fileList.innerHTML = html;
+        }
+
+        function updateStats() {
+            const stats = document.getElementById('stats');
+            const total = allFolders.length + allFiles.length;
+            const moreText = hasMore ? ' • Click "Load more" for more' : '';
+            stats.textContent = `${allFolders.length} folder(s), ${allFiles.length} file(s)${moreText}`;
+        }
+
+        function loadMore() {
+            if (hasMore && !isLoading) {
+                loadFiles();
+            }
+        }
+
+        // Auto-load more on scroll
+        document.getElementById('fileList').addEventListener('scroll', function() {
+            if (isSearchMode || !hasMore || isLoading) return;
+
+            const element = this;
+            if (element.scrollHeight - element.scrollTop - element.clientHeight < 200) {
+                loadMore();
+            }
+        });
+
+        function viewFile(key, element) {
+            // Update active state
+            document.querySelectorAll('.file-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            if (element) {
+                element.classList.add('active');
+            }
+
+            currentFile = key;
+            const contentBody = document.getElementById('contentBody');
+            const contentHeader = document.getElementById('contentHeader');
+            const contentTitle = document.getElementById('contentTitle');
+
+            contentBody.innerHTML = '<div class="loading">Loading file...</div>';
+            contentHeader.style.display = 'block';
+            contentTitle.textContent = key;
+
+            fetch(`/api/view?key=${encodeURIComponent(key)}&bucket=${encodeURIComponent(currentBucket)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        contentBody.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                        return;
+                    }
+
+                    contentBody.innerHTML = `<pre>${escapeHtml(data.content)}</pre>`;
+                })
+                .catch(error => {
+                    contentBody.innerHTML = `<div class="error">Error loading file: ${error.message}</div>`;
+                });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initial load
+        navigateTo('');
+    </script>
+</body>
+</html>

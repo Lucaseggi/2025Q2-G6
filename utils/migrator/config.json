@@ -1,0 +1,15 @@
+{
+  "postgres": {
+    "host": "simpla_postgres",
+    "port": 5432,
+    "database": "simpla",
+    "user": "postgres",
+    "password": "postgres"
+  },
+  "s3": {
+    "endpoint": "http://localstack:4566",
+    "access_key": "test",
+    "secret_key": "test",
+    "region": "us-east-1"
+  }
+}

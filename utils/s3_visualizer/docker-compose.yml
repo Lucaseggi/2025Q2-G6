@@ -1,0 +1,13 @@
+services:
+  s3-visualizer:
+    build: .
+    container_name: s3-visualizer
+    ports:
+      - "5001:5001"
+    networks:
+      - rag-network
+
+networks:
+  rag-network:
+    external: true
+    name: simpla_data_extraction_rag-network
