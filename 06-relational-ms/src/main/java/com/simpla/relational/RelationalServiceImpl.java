@@ -1,13 +1,6 @@
 package com.simpla.relational;
 
-import com.simpla.relational.proto.RelationalServiceGrpc;
-import com.simpla.relational.proto.StoreRequest;
-import com.simpla.relational.proto.StoreResponse;
-import com.simpla.relational.proto.ReconstructNormRequest;
-import com.simpla.relational.proto.ReconstructNormResponse;
-import com.simpla.relational.proto.GetBatchRequest;
-import com.simpla.relational.proto.GetBatchResponse;
-import com.simpla.relational.proto.EntityPair;
+import com.simpla.relational.proto.*;
 import com.simpla.relational.model.Norma;
 import com.simpla.relational.model.Division;
 import com.simpla.relational.model.Article;
@@ -32,21 +25,19 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
     private final ObjectMapper objectMapper;
 
     public RelationalServiceImpl() {
-        // Initialize database connection pool
+        this.dataSource = initializeDataSource();
+        this.normaRepository = new NormaRepository(dataSource);
+        this.objectMapper = initializeObjectMapper();
+    }
+
+    private HikariDataSource initializeDataSource() {
         HikariConfig config = new HikariConfig();
 
-        String dbHost = System.getenv("POSTGRES_HOST");
-        String dbPort = System.getenv("POSTGRES_PORT");
-        String dbName = System.getenv("POSTGRES_DB");
-        String dbUser = System.getenv("POSTGRES_USER");
-        String dbPassword = System.getenv("POSTGRES_PASSWORD");
-
-        // Use defaults if environment variables are not set
-        dbHost = dbHost != null ? dbHost : "postgres";
-        dbPort = dbPort != null ? dbPort : "5432";
-        dbName = dbName != null ? dbName : "simpla_rag";
-        dbUser = dbUser != null ? dbUser : "postgres";
-        dbPassword = dbPassword != null ? dbPassword : "postgres123";
+        String dbHost = getEnvOrDefault("POSTGRES_HOST", "postgres");
+        String dbPort = getEnvOrDefault("POSTGRES_PORT", "5432");
+        String dbName = getEnvOrDefault("POSTGRES_DB", "simpla_rag");
+        String dbUser = getEnvOrDefault("POSTGRES_USER", "postgres");
+        String dbPassword = getEnvOrDefault("POSTGRES_PASSWORD", "postgres123");
 
         String jdbcUrl = String.format("jdbc:postgresql://%s:%s/%s", dbHost, dbPort, dbName);
 
@@ -58,13 +49,21 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
         config.setIdleTimeout(600000);
         config.setMaxLifetime(1800000);
 
-        this.dataSource = new HikariDataSource(config);
-        this.normaRepository = new NormaRepository(dataSource);
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.registerModule(new JavaTimeModule());
-        this.objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
         System.out.println("Database connection pool initialized with URL: " + jdbcUrl);
+
+        return new HikariDataSource(config);
+    }
+
+    private ObjectMapper initializeObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        return mapper;
+    }
+
+    private String getEnvOrDefault(String key, String defaultValue) {
+        String value = System.getenv(key);
+        return value != null ? value : defaultValue;
     }
 
     @Override
@@ -72,27 +71,7 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
         System.out.println("Store method called with data length: " + request.getData().length());
 
         try {
-            // Parse the JSON data to extract the norma
-            String jsonData = request.getData();
-
-            // Parse JSON to extract norma data
-            com.fasterxml.jackson.databind.JsonNode rootNode = objectMapper.readTree(jsonData);
-            com.fasterxml.jackson.databind.JsonNode dataNode = rootNode.path("data");
-            com.fasterxml.jackson.databind.JsonNode normaNode = dataNode.path("norma");
-
-            if (normaNode.isMissingNode()) {
-                StoreResponse response = StoreResponse.newBuilder()
-                        .setSuccess(false)
-                        .setMessage("Invalid data format: 'norma' field not found")
-                        .build();
-
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
-                return;
-            }
-
-            // Convert the norma node to Norma object
-            Norma norma = objectMapper.treeToValue(normaNode, Norma.class);
+            Norma norma = parseNormaFromRequest(request.getData());
 
             System.out.println("Storing norma with infoleg_id: " + norma.getInfolegId());
 
@@ -107,45 +86,66 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
             // Convert insertion result to JSON for the vectorial-ms
             String pkMappingJson = objectMapper.writeValueAsString(insertionResult);
 
-            StoreResponse response = StoreResponse.newBuilder()
-                    .setSuccess(true)
-                    .setMessage("Norma stored successfully with ID: " + insertionResult.getNormaId() + " (infoleg_id: " + norma.getInfolegId() + ")")
-                    .setPkMappingJson(pkMappingJson)
-                    .build();
+            String message = "Norma stored successfully with ID: " + insertionResult.getNormaId() + " (infoleg_id: " + norma.getInfolegId() + ")";
+            sendResponse(responseObserver, buildStoreResponse(true, message, pkMappingJson));
 
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-
+        } catch (InvalidDataFormatException e) {
+            sendResponse(responseObserver, buildStoreResponse(false, e.getMessage(), null));
         } catch (Exception e) {
             System.err.println("Error storing norma: " + e.getMessage());
             e.printStackTrace();
+            sendResponse(responseObserver, buildStoreResponse(false, "Error storing norma: " + e.getMessage(), null));
+        }
+    }
 
-            StoreResponse response = StoreResponse.newBuilder()
-                    .setSuccess(false)
-                    .setMessage("Error storing norma: " + e.getMessage())
-                    .build();
+    private Norma parseNormaFromRequest(String jsonData) throws Exception {
+        com.fasterxml.jackson.databind.JsonNode rootNode = objectMapper.readTree(jsonData);
+        com.fasterxml.jackson.databind.JsonNode dataNode = rootNode.path("data");
+        com.fasterxml.jackson.databind.JsonNode normaNode = dataNode.path("norma");
 
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
+        if (normaNode.isMissingNode()) {
+            throw new InvalidDataFormatException("Invalid data format: 'norma' field not found");
+        }
+
+        return objectMapper.treeToValue(normaNode, Norma.class);
+    }
+
+    private static class InvalidDataFormatException extends Exception {
+        public InvalidDataFormatException(String message) {
+            super(message);
         }
     }
 
     @Override
     public void reconstructNorm(ReconstructNormRequest request, StreamObserver<ReconstructNormResponse> responseObserver) {
         System.out.println("ReconstructNorm method called with infoleg_id: " + request.getInfolegId());
+        reconstructNormInternal(
+            () -> normaRepository.findByInfolegId(request.getInfolegId()),
+            "infoleg_id: " + request.getInfolegId(),
+            responseObserver
+        );
+    }
 
+    @Override
+    public void reconstructNormById(ReconstructNormByIdRequest request, StreamObserver<ReconstructNormResponse> responseObserver) {
+        System.out.println("ReconstructNormById method called with id: " + request.getId());
+        reconstructNormInternal(
+            () -> normaRepository.findById(request.getId()),
+            "id: " + request.getId(),
+            responseObserver
+        );
+    }
+
+    private void reconstructNormInternal(
+            NormaFetcher fetcher,
+            String identifier,
+            StreamObserver<ReconstructNormResponse> responseObserver
+    ) {
         try {
-            // Find norma by infoleg_id
-            Norma norma = normaRepository.findByInfolegId(request.getInfolegId());
+            Norma norma = fetcher.fetch();
 
             if (norma == null) {
-                ReconstructNormResponse response = ReconstructNormResponse.newBuilder()
-                        .setSuccess(false)
-                        .setMessage("Norma not found with infoleg_id: " + request.getInfolegId())
-                        .build();
-
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
+                sendResponse(responseObserver, buildReconstructNormResponse(false, "Norma not found with " + identifier, null));
                 return;
             }
 
@@ -153,27 +153,56 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
             String normaJson = objectMapper.writeValueAsString(norma);
             System.out.println("Norma reconstructed successfully, JSON length: " + normaJson.length());
 
-            ReconstructNormResponse response = ReconstructNormResponse.newBuilder()
-                    .setSuccess(true)
-                    .setMessage("Norma reconstructed successfully from database")
-                    .setNormaJson(normaJson)
-                    .build();
-
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
+            sendResponse(responseObserver, buildReconstructNormResponse(true, "Norma reconstructed successfully from database", normaJson));
 
         } catch (Exception e) {
             System.err.println("Error reconstructing norma: " + e.getMessage());
             e.printStackTrace();
-
-            ReconstructNormResponse response = ReconstructNormResponse.newBuilder()
-                    .setSuccess(false)
-                    .setMessage("Error reconstructing norma: " + e.getMessage())
-                    .build();
-
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
+            sendResponse(responseObserver, buildReconstructNormResponse(false, "Error reconstructing norma: " + e.getMessage(), null));
         }
+    }
+
+    private StoreResponse buildStoreResponse(boolean success, String message, String pkMappingJson) {
+        StoreResponse.Builder builder = StoreResponse.newBuilder()
+                .setSuccess(success)
+                .setMessage(message);
+
+        if (pkMappingJson != null) {
+            builder.setPkMappingJson(pkMappingJson);
+        }
+
+        return builder.build();
+    }
+
+    private ReconstructNormResponse buildReconstructNormResponse(boolean success, String message, String normaJson) {
+        ReconstructNormResponse.Builder builder = ReconstructNormResponse.newBuilder()
+                .setSuccess(success)
+                .setMessage(message);
+
+        if (normaJson != null) {
+            builder.setNormaJson(normaJson);
+        }
+
+        return builder.build();
+    }
+
+    private GetBatchResponse buildGetBatchResponse(boolean success, String message, String divisionsJson, String articlesJson) {
+        return GetBatchResponse.newBuilder()
+                .setSuccess(success)
+                .setMessage(message)
+                .setDivisionsJson(divisionsJson)
+                .setArticlesJson(articlesJson)
+                .build();
+    }
+
+    private <T> void sendResponse(StreamObserver<T> responseObserver, T response) {
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    @FunctionalInterface
+    private interface NormaFetcher {
+        Norma fetch() throws Exception;
     }
 
     @Override
@@ -181,78 +210,71 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
         System.out.println("GetBatch method called with " + request.getEntitiesCount() + " entities");
 
         try {
-            List<Division> divisions = new ArrayList<>();
-            List<Article> articles = new ArrayList<>();
-
-            // Process each entity pair
-            for (EntityPair entityPair : request.getEntitiesList()) {
-                String type = entityPair.getType();
-                long id = entityPair.getId();
-
-                System.out.println("Processing entity: type=" + type + ", id=" + id);
-
-                if ("division".equalsIgnoreCase(type)) {
-                    Division division = normaRepository.findDivisionById(id);
-                    if (division != null) {
-                        divisions.add(division);
-                    } else {
-                        System.out.println("Division not found with id: " + id);
-                    }
-                } else if ("article".equalsIgnoreCase(type)) {
-                    Article article = normaRepository.findArticleById(id);
-                    if (article != null) {
-                        articles.add(article);
-                    } else {
-                        System.out.println("Article not found with id: " + id);
-                    }
-                } else {
-                    System.out.println("Unknown entity type: " + type);
-                }
-            }
+            BatchEntities batchEntities = fetchBatchEntities(request.getEntitiesList());
 
             // Convert to JSON
-            String divisionsJson = objectMapper.writeValueAsString(divisions);
-            String articlesJson = objectMapper.writeValueAsString(articles);
+            String divisionsJson = objectMapper.writeValueAsString(batchEntities.divisions);
+            String articlesJson = objectMapper.writeValueAsString(batchEntities.articles);
 
-            System.out.println("Retrieved " + divisions.size() + " divisions and " + articles.size() + " articles");
+            System.out.println("Retrieved " + batchEntities.divisions.size() + " divisions and " + batchEntities.articles.size() + " articles");
 
-            GetBatchResponse response = GetBatchResponse.newBuilder()
-                    .setSuccess(true)
-                    .setMessage("Retrieved " + divisions.size() + " divisions and " + articles.size() + " articles")
-                    .setDivisionsJson(divisionsJson)
-                    .setArticlesJson(articlesJson)
-                    .build();
-
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
+            String message = "Retrieved " + batchEntities.divisions.size() + " divisions and " + batchEntities.articles.size() + " articles";
+            sendResponse(responseObserver, buildGetBatchResponse(true, message, divisionsJson, articlesJson));
 
         } catch (Exception e) {
             System.err.println("Error retrieving batch entities: " + e.getMessage());
             e.printStackTrace();
-
-            GetBatchResponse response = GetBatchResponse.newBuilder()
-                    .setSuccess(false)
-                    .setMessage("Error retrieving batch entities: " + e.getMessage())
-                    .setDivisionsJson("[]")
-                    .setArticlesJson("[]")
-                    .build();
-
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
+            sendResponse(responseObserver, buildGetBatchResponse(false, "Error retrieving batch entities: " + e.getMessage(), "[]", "[]"));
         }
     }
 
-    private int getArticlesCount() throws SQLException {
-        String sql = "SELECT COUNT(*) FROM articles";
+    private BatchEntities fetchBatchEntities(List<EntityPair> entityPairs) throws SQLException {
+        List<Division> divisions = new ArrayList<>();
+        List<Article> articles = new ArrayList<>();
 
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+        for (EntityPair entityPair : entityPairs) {
+            String type = entityPair.getType();
+            long id = entityPair.getId();
 
-            if (rs.next()) {
-                return rs.getInt(1);
+            System.out.println("Processing entity: type=" + type + ", id=" + id);
+
+            if ("division".equalsIgnoreCase(type)) {
+                fetchAndAddDivision(id, divisions);
+            } else if ("article".equalsIgnoreCase(type)) {
+                fetchAndAddArticle(id, articles);
+            } else {
+                System.out.println("Unknown entity type: " + type);
             }
-            return 0;
+        }
+
+        return new BatchEntities(divisions, articles);
+    }
+
+    private void fetchAndAddDivision(long id, List<Division> divisions) throws SQLException {
+        Division division = normaRepository.findDivisionById(id);
+        if (division != null) {
+            divisions.add(division);
+        } else {
+            System.out.println("Division not found with id: " + id);
+        }
+    }
+
+    private void fetchAndAddArticle(long id, List<Article> articles) throws SQLException {
+        Article article = normaRepository.findArticleById(id);
+        if (article != null) {
+            articles.add(article);
+        } else {
+            System.out.println("Article not found with id: " + id);
+        }
+    }
+
+    private static class BatchEntities {
+        final List<Division> divisions;
+        final List<Article> articles;
+
+        BatchEntities(List<Division> divisions, List<Article> articles) {
+            this.divisions = divisions;
+            this.articles = articles;
         }
     }
 

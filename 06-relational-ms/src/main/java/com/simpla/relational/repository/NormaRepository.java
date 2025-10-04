@@ -44,8 +44,7 @@ public class NormaRepository {
         }
     }
 
-    public Norma findByInfolegId(Integer infolegId) throws SQLException {
-        String sql = """
+    private static final String FIND_NORMA_SQL = """
             SELECT n.id, n.infoleg_id, n.jurisdiccion, n.clase_norma, n.tipo_norma,
                    n.sancion, n.publicacion, n.titulo_sumario, n.titulo_resumido,
                    n.observaciones, n.nro_boletin, n.pag_boletin, n.texto_resumido,
@@ -54,13 +53,24 @@ public class NormaRepository {
                    n.embedding_model, n.embedding_source, n.embedded_at, n.embedding_type,
                    n.llm_model_used, n.llm_tokens_used, n.llm_processing_time, n.llm_similarity_score
             FROM normas_structured n
-            WHERE n.infoleg_id = ?
+            WHERE %s
             """;
+
+    public Norma findByInfolegId(Integer infolegId) throws SQLException {
+        return findNormaByCondition("n.infoleg_id = ?", stmt -> stmt.setInt(1, infolegId));
+    }
+
+    public Norma findById(Long id) throws SQLException {
+        return findNormaByCondition("n.id = ?", stmt -> stmt.setLong(1, id));
+    }
+
+    private Norma findNormaByCondition(String whereClause, PreparedStatementSetter paramSetter) throws SQLException {
+        String sql = String.format(FIND_NORMA_SQL, whereClause);
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, infolegId);
+            paramSetter.setParameters(stmt);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -77,6 +87,11 @@ public class NormaRepository {
         }
 
         return null;
+    }
+
+    @FunctionalInterface
+    private interface PreparedStatementSetter {
+        void setParameters(PreparedStatement stmt) throws SQLException;
     }
 
     private Norma mapNormaFromResultSet(ResultSet rs) throws SQLException {
@@ -193,29 +208,33 @@ public class NormaRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Division division = new Division();
-                    division.setId(rs.getLong("id"));
-                    division.setName(rs.getString("name"));
-                    division.setOrdinal(rs.getString("ordinal"));
-                    division.setTitle(rs.getString("title"));
-                    division.setBody(rs.getString("body"));
-
-                    Integer orderIndex = rs.getInt("order_index");
-                    if (!rs.wasNull()) {
-                        division.setOrderIndex(orderIndex);
-                    }
-
-                    Long parentDivisionId = rs.getLong("parent_division_id");
-                    if (!rs.wasNull()) {
-                        division.setParentDivisionId(parentDivisionId);
-                    }
-
-                    divisions.add(division);
+                    divisions.add(mapDivisionFromResultSet(rs));
                 }
             }
         }
 
         return divisions;
+    }
+
+    private Division mapDivisionFromResultSet(ResultSet rs) throws SQLException {
+        Division division = new Division();
+        division.setId(rs.getLong("id"));
+        division.setName(rs.getString("name"));
+        division.setOrdinal(rs.getString("ordinal"));
+        division.setTitle(rs.getString("title"));
+        division.setBody(rs.getString("body"));
+
+        Integer orderIndex = rs.getInt("order_index");
+        if (!rs.wasNull()) {
+            division.setOrderIndex(orderIndex);
+        }
+
+        Long parentDivisionId = rs.getLong("parent_division_id");
+        if (!rs.wasNull()) {
+            division.setParentDivisionId(parentDivisionId);
+        }
+
+        return division;
     }
 
     private void loadArticlesForDivision(Division division, Long divisionId) throws SQLException {
@@ -233,20 +252,29 @@ public class NormaRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Article article = new Article();
-                    article.setId(rs.getLong("id"));
-                    article.setOrdinal(rs.getString("ordinal"));
-                    article.setBody(rs.getString("body"));
-
-                    Integer orderIndex = rs.getInt("order_index");
-                    if (!rs.wasNull()) {
-                        article.setOrderIndex(orderIndex);
-                    }
-
-                    division.addArticle(article);
+                    division.addArticle(mapArticleFromResultSet(rs));
                 }
             }
         }
+    }
+
+    private Article mapArticleFromResultSet(ResultSet rs) throws SQLException {
+        Article article = new Article();
+        article.setId(rs.getLong("id"));
+        article.setOrdinal(rs.getString("ordinal"));
+        article.setBody(rs.getString("body"));
+
+        Integer orderIndex = rs.getInt("order_index");
+        if (!rs.wasNull()) {
+            article.setOrderIndex(orderIndex);
+        }
+
+        Long parentArticleId = rs.getLong("parent_article_id");
+        if (!rs.wasNull()) {
+            article.setParentArticleId(parentArticleId);
+        }
+
+        return article;
     }
 
     public Long insertNorma(Norma norma) throws SQLException {
@@ -510,22 +538,7 @@ public class NormaRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    Division division = new Division();
-                    division.setId(rs.getLong("id"));
-                    division.setName(rs.getString("name"));
-                    division.setOrdinal(rs.getString("ordinal"));
-                    division.setTitle(rs.getString("title"));
-                    division.setBody(rs.getString("body"));
-
-                    Integer orderIndex = rs.getInt("order_index");
-                    if (!rs.wasNull()) {
-                        division.setOrderIndex(orderIndex);
-                    }
-
-                    Long parentDivisionId = rs.getLong("parent_division_id");
-                    if (!rs.wasNull()) {
-                        division.setParentDivisionId(parentDivisionId);
-                    }
+                    Division division = mapDivisionFromResultSet(rs);
 
                     // Load articles for this division
                     loadArticlesForDivision(division, division.getId());
@@ -556,22 +569,7 @@ public class NormaRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Division childDivision = new Division();
-                    childDivision.setId(rs.getLong("id"));
-                    childDivision.setName(rs.getString("name"));
-                    childDivision.setOrdinal(rs.getString("ordinal"));
-                    childDivision.setTitle(rs.getString("title"));
-                    childDivision.setBody(rs.getString("body"));
-
-                    Integer orderIndex = rs.getInt("order_index");
-                    if (!rs.wasNull()) {
-                        childDivision.setOrderIndex(orderIndex);
-                    }
-
-                    Long parentId = rs.getLong("parent_division_id");
-                    if (!rs.wasNull()) {
-                        childDivision.setParentDivisionId(parentId);
-                    }
+                    Division childDivision = mapDivisionFromResultSet(rs);
 
                     // Load articles and child divisions recursively
                     loadArticlesForDivision(childDivision, childDivision.getId());
@@ -597,20 +595,7 @@ public class NormaRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    Article article = new Article();
-                    article.setId(rs.getLong("id"));
-                    article.setOrdinal(rs.getString("ordinal"));
-                    article.setBody(rs.getString("body"));
-
-                    Integer orderIndex = rs.getInt("order_index");
-                    if (!rs.wasNull()) {
-                        article.setOrderIndex(orderIndex);
-                    }
-
-                    Long parentArticleId = rs.getLong("parent_article_id");
-                    if (!rs.wasNull()) {
-                        article.setParentArticleId(parentArticleId);
-                    }
+                    Article article = mapArticleFromResultSet(rs);
 
                     // Load child articles recursively
                     loadChildArticles(article, article.getId(), rs.getLong("division_id"));
@@ -638,20 +623,7 @@ public class NormaRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Article childArticle = new Article();
-                    childArticle.setId(rs.getLong("id"));
-                    childArticle.setOrdinal(rs.getString("ordinal"));
-                    childArticle.setBody(rs.getString("body"));
-
-                    Integer orderIndex = rs.getInt("order_index");
-                    if (!rs.wasNull()) {
-                        childArticle.setOrderIndex(orderIndex);
-                    }
-
-                    Long parentId = rs.getLong("parent_article_id");
-                    if (!rs.wasNull()) {
-                        childArticle.setParentArticleId(parentId);
-                    }
+                    Article childArticle = mapArticleFromResultSet(rs);
 
                     // Recursively load child articles
                     loadChildArticles(childArticle, childArticle.getId(), divisionId);
