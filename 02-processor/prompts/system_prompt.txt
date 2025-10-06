@@ -109,6 +109,19 @@ Existen **tres tipos de divisiones**:
 * El `body` del artículo padre solo debe contener la introducción previa a la lista de subartículos.
 * **IMPORTANTE**: Si después de un inciso (ej: "a)") hay párrafos sin letra/número antes del siguiente inciso, esos párrafos son **continuación del inciso anterior**, NO incisos separados.
 
+### 5.1. Reconocimiento de niveles jerárquicos en numeración
+
+* **CRÍTICO**: Un cambio en el tipo o formato de numeración indica un cambio en el nivel jerárquico y debe crear una relación padre-hijo.
+* Los siguientes cambios indican que los nuevos elementos son **subartículos** del último artículo del nivel anterior:
+  - De números (1, 2, 3) a letras (a, b, c)
+  - De números a números romanos minúsculos (i, ii, iii)
+  - De letras a números con punto (1., 2., 3.)
+  - De un formato a otro formato distinto (ej: 1) → a) → i.) )
+* **Ejemplos**:
+  - Si hay artículos "1)", "2)", "3)" y luego aparece "a)", "b)", "c)", entonces a), b), c) son subartículos de "3)".
+  - Si hay artículos "a)", "b)" y luego aparece "1.", "2.", entonces 1., 2. son subartículos de "b)".
+* **Excepción**: Si el cambio de formato viene acompañado de un aumento explícito en la jerarquía visual (ej: un nuevo título de sección), entonces NO es un subnivel sino un nuevo nivel del mismo rango.
+
 ### 6. Corrección OCR
 
 * Corregir errores de digitalización obvios (acentos, puntuación, separación de palabras, confusión de letras/números).
@@ -366,7 +379,106 @@ Las sanciones serán aplicadas por la autoridad competente.
 
 ---
 
-### Ejemplo 4 (subartículos / incisos con continuación)
+### Ejemplo 4 (cambio de formato de numeración indica jerarquía)
+
+**Entrada:**
+
+```text
+ARTICULO 1° — Los Estados Partes acuerdan:
+
+1) Implementar políticas de cooperación;
+
+2) Fomentar el intercambio técnico;
+
+3) Establecer mecanismos de control, mediante:
+
+a) Auditorías periódicas;
+
+b) Informes anuales que deberán contener:
+
+i) Estadísticas de cumplimiento;
+
+ii) Análisis de resultados;
+
+c) Evaluaciones externas.
+
+4) Publicar los resultados obtenidos.
+```
+
+**Salida:**
+
+```json
+{
+  "divisions": [
+    {
+      "name": "Cuerpo Principal",
+      "ordinal": "",
+      "title": "",
+      "body": "",
+      "articles": [
+        {
+          "ordinal": "1",
+          "body": "Los Estados Partes acuerdan:",
+          "articles": [
+            {
+              "ordinal": "1",
+              "body": "Implementar políticas de cooperación;",
+              "articles": []
+            },
+            {
+              "ordinal": "2",
+              "body": "Fomentar el intercambio técnico;",
+              "articles": []
+            },
+            {
+              "ordinal": "3",
+              "body": "Establecer mecanismos de control, mediante:",
+              "articles": [
+                {
+                  "ordinal": "a",
+                  "body": "Auditorías periódicas;",
+                  "articles": []
+                },
+                {
+                  "ordinal": "b",
+                  "body": "Informes anuales que deberán contener:",
+                  "articles": [
+                    {
+                      "ordinal": "i",
+                      "body": "Estadísticas de cumplimiento;",
+                      "articles": []
+                    },
+                    {
+                      "ordinal": "ii",
+                      "body": "Análisis de resultados;",
+                      "articles": []
+                    }
+                  ]
+                },
+                {
+                  "ordinal": "c",
+                  "body": "Evaluaciones externas.",
+                  "articles": []
+                }
+              ]
+            },
+            {
+              "ordinal": "4",
+              "body": "Publicar los resultados obtenidos.",
+              "articles": []
+            }
+          ]
+        }
+      ],
+      "divisions": []
+    }
+  ]
+}
+```
+
+---
+
+### Ejemplo 5 (subartículos / incisos con continuación)
 
 **Entrada:**
 

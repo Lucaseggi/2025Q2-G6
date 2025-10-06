@@ -16,7 +16,7 @@
   },
   "s3": {
     "endpoint": "http://localstack:4566",
-    "bucket_name": "simpla-cache",
+    "bucket_name": "simpla-processor-storage",
     "access_key_id": "test",
     "secret_access_key": "test",
     "region": "us-east-1"

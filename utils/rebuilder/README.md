@@ -15,11 +15,11 @@ The Postgres database is:
 
 ## Injecting Data into S3 Cache
 
-To populate the scraper's S3 cache (`simpla-cache`) with existing normas:
+To populate the scraper's S3 storage with existing normas:
 
 ```bash
 # From utils/migrator directory
-docker compose run --rm migrator pg-to-s3 simpla-cache \
+docker compose run --rm migrator pg-to-s3 simpla-scraper-storage \
   --pg-host simpla_postgres \
   --pg-database simpla \
   --format multiple \

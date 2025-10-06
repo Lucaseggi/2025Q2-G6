@@ -6,7 +6,7 @@ Web-based browser for S3 bucket contents. Navigate folders and view JSON/text fi
 
 ```bash
 # Start with Docker Compose
-docker-compose up -d s3-visualizer
+docker compose up -d s3-visualizer
 
 # Open in browser
 http://localhost:5001

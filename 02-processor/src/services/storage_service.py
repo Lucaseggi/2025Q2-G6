@@ -106,3 +106,22 @@ class StorageService(StorageInterface):
         except Exception as e:
             logger.error(f"Error deleting stored data for key {key}: {e}")
             return False
+
+    def store_failed_processing(self, infoleg_id: int, failed_data: Dict[str, Any]) -> bool:
+        """Store failed processing data for later analysis"""
+        try:
+            key = f"failed_norms/{infoleg_id}.json"
+
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=key,
+                Body=json.dumps(failed_data, indent=2, ensure_ascii=False),
+                ContentType='application/json'
+            )
+
+            logger.info(f"Stored failed processing data for norm {infoleg_id} in S3")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error storing failed processing data for norm {infoleg_id}: {e}")
+            return False

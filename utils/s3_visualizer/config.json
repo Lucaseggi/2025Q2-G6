@@ -3,5 +3,5 @@
   "access_key": "test",
   "secret_key": "test",
   "region": "us-east-1",
-  "bucket": "simpla-cache"
+  "bucket": "simpla-scraper-storage"
 }

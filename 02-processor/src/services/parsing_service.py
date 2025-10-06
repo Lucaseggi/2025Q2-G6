@@ -106,7 +106,9 @@ class ParsingService(ParsingServiceInterface):
             # Step 2: LLM processing for structuring
             self.logger.info(f"Processing {primary_field} for document {infoleg_response.infoleg_id}")
 
-            llm_result = self.llm_service.process_text(primary_purified_text)
+            # Pass context with infoleg_id for better logging
+            context = {"infoleg_id": infoleg_response.infoleg_id}
+            llm_result = self.llm_service.process_text(primary_purified_text, context=context)
 
             if not llm_result.success:
                 self.logger.error(f"Input text: {primary_purified_text[:500]}...")
@@ -114,6 +116,18 @@ class ParsingService(ParsingServiceInterface):
                     self.logger.error("Response was not valid JSON output")
                 else:
                     self.logger.error(f"LLM processing failed: {llm_result.error_message}")
+
+                # Store failed processing result to S3 for analysis
+                failed_data = {
+                    "infoleg_id": infoleg_response.infoleg_id,
+                    "timestamp": datetime.now().isoformat(),
+                    "error_type": "llm_processing_failed",
+                    "error_message": llm_result.error_message,
+                    "input_text": primary_purified_text,
+                    "primary_field": primary_field
+                }
+                self.storage_service.store_failed_processing(infoleg_response.infoleg_id, failed_data)
+
                 self.stats['failed_llm_processing'] += 1
                 return None
 
