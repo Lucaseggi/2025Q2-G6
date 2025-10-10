@@ -19,6 +19,7 @@ public class Article {
     @JsonProperty("articles")
     private List<Article> childArticles = new ArrayList<>();
 
+    @JsonProperty("parent_article_id")
     private Long parentArticleId;
 
     public Article() {}

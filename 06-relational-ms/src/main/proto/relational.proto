@@ -49,6 +49,5 @@ message GetBatchRequest {
 message GetBatchResponse {
   bool success = 1;
   string message = 2;
-  string divisions_json = 3;
-  string articles_json = 4;
+  string normas_json = 3;
 }

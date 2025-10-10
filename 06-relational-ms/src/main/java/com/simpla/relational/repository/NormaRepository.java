@@ -239,7 +239,7 @@ public class NormaRepository {
 
     private void loadArticlesForDivision(Division division, Long divisionId) throws SQLException {
         String sql = """
-            SELECT a.id, a.ordinal, a.body, a.order_index
+            SELECT a.id, a.ordinal, a.body, a.order_index, a.parent_article_id
             FROM articles a
             WHERE a.division_id = ?
             ORDER BY a.order_index, a.id
@@ -632,5 +632,85 @@ public class NormaRepository {
                 }
             }
         }
+    }
+
+    public Long findNormaIdByDivisionId(Long divisionId) throws SQLException {
+        String sql = "SELECT norma_id FROM divisions WHERE id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, divisionId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong("norma_id");
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public Long findNormaIdByArticleId(Long articleId) throws SQLException {
+        String sql = """
+            SELECT d.norma_id
+            FROM articles a
+            JOIN divisions d ON a.division_id = d.id
+            WHERE a.id = ?
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, articleId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong("norma_id");
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public NormaBatchData findNormaBatchDataById(Long normaId) throws SQLException {
+        String sql = """
+            SELECT id, infoleg_id, jurisdiccion, titulo_sumario, publicacion,
+                   texto_resumido, nro_boletin, pag_boletin, titulo_resumido, tipo_norma
+            FROM normas_structured
+            WHERE id = ?
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, normaId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    NormaBatchData batchData = new NormaBatchData();
+                    batchData.setInfolegId(rs.getInt("infoleg_id"));
+                    batchData.setJurisdiccion(rs.getString("jurisdiccion"));
+                    batchData.setTituloSumario(rs.getString("titulo_sumario"));
+
+                    Date publicacionDate = rs.getDate("publicacion");
+                    if (publicacionDate != null) {
+                        batchData.setPublicacion(publicacionDate.toLocalDate());
+                    }
+
+                    batchData.setTextoResumido(rs.getString("texto_resumido"));
+                    batchData.setNroBoletin(rs.getString("nro_boletin"));
+                    batchData.setPagBoletin(rs.getString("pag_boletin"));
+                    batchData.setTituloResumido(rs.getString("titulo_resumido"));
+                    batchData.setTipoNorma(rs.getString("tipo_norma"));
+
+                    return batchData;
+                }
+            }
+        }
+
+        return null;
     }
 }

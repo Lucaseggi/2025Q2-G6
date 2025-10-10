@@ -1,5 +1,6 @@
 package com.simpla.relational;
 
+import com.simpla.relational.model.NormaBatchData;
 import com.simpla.relational.proto.*;
 import com.simpla.relational.model.Norma;
 import com.simpla.relational.model.Division;
@@ -11,9 +12,6 @@ import io.grpc.stub.StreamObserver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -186,12 +184,11 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
         return builder.build();
     }
 
-    private GetBatchResponse buildGetBatchResponse(boolean success, String message, String divisionsJson, String articlesJson) {
+    private GetBatchResponse buildGetBatchResponse(boolean success, String message, String normasJson) {
         return GetBatchResponse.newBuilder()
                 .setSuccess(success)
                 .setMessage(message)
-                .setDivisionsJson(divisionsJson)
-                .setArticlesJson(articlesJson)
+                .setNormasJson(normasJson)
                 .build();
     }
 
@@ -210,72 +207,92 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
         System.out.println("GetBatch method called with " + request.getEntitiesCount() + " entities");
 
         try {
-            BatchEntities batchEntities = fetchBatchEntities(request.getEntitiesList());
+            List<NormaBatchData> normaBatchDataList = fetchNormasBatch(request.getEntitiesList());
 
             // Convert to JSON
-            String divisionsJson = objectMapper.writeValueAsString(batchEntities.divisions);
-            String articlesJson = objectMapper.writeValueAsString(batchEntities.articles);
+            String normasJson = objectMapper.writeValueAsString(normaBatchDataList);
 
-            System.out.println("Retrieved " + batchEntities.divisions.size() + " divisions and " + batchEntities.articles.size() + " articles");
+            System.out.println("Retrieved " + normaBatchDataList.size() + " unique norms");
 
-            String message = "Retrieved " + batchEntities.divisions.size() + " divisions and " + batchEntities.articles.size() + " articles";
-            sendResponse(responseObserver, buildGetBatchResponse(true, message, divisionsJson, articlesJson));
+            String message = "Retrieved " + normaBatchDataList.size() + " unique norms";
+            sendResponse(responseObserver, buildGetBatchResponse(true, message, normasJson));
 
         } catch (Exception e) {
             System.err.println("Error retrieving batch entities: " + e.getMessage());
             e.printStackTrace();
-            sendResponse(responseObserver, buildGetBatchResponse(false, "Error retrieving batch entities: " + e.getMessage(), "[]", "[]"));
+            sendResponse(responseObserver, buildGetBatchResponse(false, "Error retrieving batch entities: " + e.getMessage(), "[]"));
         }
     }
 
-    private BatchEntities fetchBatchEntities(List<EntityPair> entityPairs) throws SQLException {
-        List<Division> divisions = new ArrayList<>();
-        List<Article> articles = new ArrayList<>();
+    private List<NormaBatchData> fetchNormasBatch(List<EntityPair> entityPairs) throws SQLException {
+        // Map to track which entities belong to which norm
+        java.util.Map<Long, NormaBatchData> normaMap = new java.util.LinkedHashMap<>();
 
         for (EntityPair entityPair : entityPairs) {
             String type = entityPair.getType();
-            long id = entityPair.getId();
+            long entityId = entityPair.getId();
 
-            System.out.println("Processing entity: type=" + type + ", id=" + id);
+            System.out.println("Processing entity: type=" + type + ", id=" + entityId);
+
+            Long normaId = null;
 
             if ("division".equalsIgnoreCase(type)) {
-                fetchAndAddDivision(id, divisions);
+                normaId = normaRepository.findNormaIdByDivisionId(entityId);
+                if (normaId != null) {
+                    NormaBatchData normaBatchData = normaMap.computeIfAbsent(normaId, k -> new NormaBatchData());
+                    normaBatchData.addDivisionId(entityId);
+                } else {
+                    System.out.println("Norma not found for division id: " + entityId);
+                }
             } else if ("article".equalsIgnoreCase(type)) {
-                fetchAndAddArticle(id, articles);
+                normaId = normaRepository.findNormaIdByArticleId(entityId);
+                if (normaId != null) {
+                    NormaBatchData normaBatchData = normaMap.computeIfAbsent(normaId, k -> new NormaBatchData());
+                    normaBatchData.addArticleId(entityId);
+                } else {
+                    System.out.println("Norma not found for article id: " + entityId);
+                }
             } else {
                 System.out.println("Unknown entity type: " + type);
             }
         }
 
-        return new BatchEntities(divisions, articles);
-    }
+        // Fetch norm summaries and requested entities
+        List<NormaBatchData> result = new ArrayList<>();
+        for (java.util.Map.Entry<Long, NormaBatchData> entry : normaMap.entrySet()) {
+            Long normaId = entry.getKey();
+            NormaBatchData batchData = entry.getValue();
 
-    private void fetchAndAddDivision(long id, List<Division> divisions) throws SQLException {
-        Division division = normaRepository.findDivisionById(id);
-        if (division != null) {
-            divisions.add(division);
-        } else {
-            System.out.println("Division not found with id: " + id);
+            // Fetch norm batch data (metadata only)
+            NormaBatchData normaBatchData = normaRepository.findNormaBatchDataById(normaId);
+            if (normaBatchData != null) {
+                // Transfer the tracked entity IDs to the fetched batch data
+                normaBatchData.setDivisionIds(batchData.getDivisionIds());
+                normaBatchData.setArticleIds(batchData.getArticleIds());
+
+                // Fetch requested divisions
+                for (Long divisionId : normaBatchData.getDivisionIds()) {
+                    Division division = normaRepository.findDivisionById(divisionId);
+                    if (division != null) {
+                        normaBatchData.addDivision(division);
+                    }
+                }
+
+                // Fetch requested articles
+                for (Long articleId : normaBatchData.getArticleIds()) {
+                    Article article = normaRepository.findArticleById(articleId);
+                    if (article != null) {
+                        normaBatchData.addArticle(article);
+                    }
+                }
+
+                result.add(normaBatchData);
+            } else {
+                System.out.println("Norm batch data not found for norma_id: " + normaId);
+            }
         }
-    }
 
-    private void fetchAndAddArticle(long id, List<Article> articles) throws SQLException {
-        Article article = normaRepository.findArticleById(id);
-        if (article != null) {
-            articles.add(article);
-        } else {
-            System.out.println("Article not found with id: " + id);
-        }
-    }
-
-    private static class BatchEntities {
-        final List<Division> divisions;
-        final List<Article> articles;
-
-        BatchEntities(List<Division> divisions, List<Article> articles) {
-            this.divisions = divisions;
-            this.articles = articles;
-        }
+        return result;
     }
 
     public void shutdown() {
