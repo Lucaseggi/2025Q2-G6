@@ -1,16 +1,16 @@
-"""Main entry point for the processor service with clean architecture"""
+"""Queue worker for the processor service"""
 
-import logging
 import sys
 import time
 import os
-from datetime import datetime
 from typing import Optional
 
 # Add shared modules to path
 sys.path.append('/app/shared')
 from rabbitmq_client import RabbitMQClient
 from models import ProcessedData
+from structured_logger import StructuredLogger, LogStage
+from failed_processing_logger import FailedProcessingLogger
 
 # Add local src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
@@ -22,9 +22,7 @@ from services.storage_service import StorageService
 
 from config import ProcessorSettings
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = StructuredLogger("processor", "worker")
 
 
 class DocumentProcessor:
@@ -32,13 +30,14 @@ class DocumentProcessor:
 
     def __init__(self):
         """Initialize document processor with dependency injection"""
-        logger.info("Initializing Document Processor...")
+        logger.info("Initializing Document Processor", stage=LogStage.STARTUP)
 
         # Load configuration
         self.config = ProcessorSettings()
 
         # Initialize shared components
         self.queue_client = RabbitMQClient()
+        self.failed_logger = FailedProcessingLogger(service_name="processor")
 
         # Initialize services with dependency injection
         self.text_processor = TextProcessingService()
@@ -93,11 +92,30 @@ class DocumentProcessor:
             else:
                 self.stats['failed'] += 1
                 logger.error(f"Failed to process document {infoleg_id}")
+
+                # Log failure for manual intervention
+                self.failed_logger.log_failure(
+                    infoleg_id=infoleg_id,
+                    error_type="processing_failed",
+                    error_message="Processing pipeline returned None",
+                    stage="processing",
+                    additional_data={"service": "processor"}
+                )
                 return None
 
         except Exception as e:
             self.stats['failed'] += 1
             logger.error(f"Error processing document: {e}")
+
+            # Log failure with exception details
+            if 'infoleg_id' in locals():
+                self.failed_logger.log_failure(
+                    infoleg_id=infoleg_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    stage="processing_exception",
+                    additional_data={"service": "processor"}
+                )
             return None
 
     def log_statistics(self):
@@ -125,6 +143,13 @@ class DocumentProcessor:
             logger.info(f"  - Failed verification:   {parsing_stats['failed_verification']}")
             logger.info(f"  - Stored to S3:          {parsing_stats['stored_to_s3']}")
 
+        # Log failed processing summary
+        failed_summary = self.failed_logger.get_summary()
+        if failed_summary.get('unique_failed_ids', 0) > 0:
+            logger.info("FAILED PROCESSING TRACKING:")
+            logger.info(f"  - Unique failed IDs:     {failed_summary['unique_failed_ids']}")
+            logger.info(f"  - Log file:              {self.failed_logger.log_file}")
+
         logger.info("=" * 80)
 
     def run(self):
@@ -149,26 +174,40 @@ class DocumentProcessor:
                         if 'cached_at' in message and 'data' in message:
                             # Data comes from cache, unwrap it
                             actual_data = message['data']
-                            logger.debug(f"Processing cached data from {message.get('cached_at')}")
                         else:
                             # Data is direct ProcessedData format
                             actual_data = message
 
                         input_data = ProcessedData.from_dict(actual_data)
+                        infoleg_id = input_data.scraping_data.infoleg_response.infoleg_id
+
+                        logger.log_message_received(
+                            queue_name='processing',
+                            infoleg_id=infoleg_id
+                        )
                     except Exception as e:
-                        logger.error(f"Error parsing input data: {e}")
+                        logger.error(f"Error parsing input data: {str(e)}", stage=LogStage.QUEUE_ERROR)
                         continue
 
                     # Process the document
                     processed_data = self.process_document(input_data)
 
                     if processed_data:
+                        infoleg_id = processed_data.scraping_data.infoleg_response.infoleg_id
                         # Send to embedding queue
                         success = self.queue_client.send_message('embedding', processed_data.to_dict())
-                        if not success:
+                        if success:
+                            logger.log_message_sent(
+                                queue_name='embedding',
+                                infoleg_id=infoleg_id
+                            )
+                        else:
                             self.stats['queue_failures'] += 1
-                            infoleg_id = processed_data.scraping_data.infoleg_response.infoleg_id
-                            logger.error(f"Queue failure: Could not send document {infoleg_id} to embedding queue")
+                            logger.error(
+                                "Failed to send to embedding queue",
+                                stage=LogStage.QUEUE_ERROR,
+                                infoleg_id=infoleg_id
+                            )
 
                 # Log statistics every 5 minutes or after every 10 documents
                 current_time = time.time()

@@ -187,15 +187,21 @@ class LLMService(LLMServiceInterface):
         start_time = time.time()
         models_used = []
 
+        # Extract document ID from context for logging
+        doc_id = context.get('infoleg_id', 'unknown') if context else 'unknown'
+
         # Try each model in escalation chain
         for model_index, model_name in enumerate(self.config.gemini.models):
             try:
+                logger.info(f"Attempting to process document {doc_id} with model {model_name}")
                 result = self._call_gemini_with_retries_sync(model_name, text, self.get_system_prompt())
                 models_used.append(model_name)
 
                 if result.success:
                     result.models_used = models_used
                     result.processing_time = time.time() - start_time
+
+                    logger.info(f"Model {model_name} successfully processed document {doc_id}")
 
                     # Return successful result as interface ProcessingResult
                     return InterfaceProcessingResult(
@@ -205,12 +211,20 @@ class LLMService(LLMServiceInterface):
                         processing_time=result.processing_time,
                         tokens_used=result.tokens_used
                     )
+                else:
+                    error_msg = result.error_message or "Unknown error"
+                    logger.warning(f"Model {model_name} failed processing document {doc_id} due to: {error_msg}")
+                    if model_index < len(self.config.gemini.models) - 1:
+                        logger.info(f"Escalating to next model in chain for document {doc_id}")
 
             except Exception as e:
+                logger.error(f"Model {model_name} failed processing document {doc_id} due to: {str(e)}")
                 if model_index < len(self.config.gemini.models) - 1:
+                    logger.info(f"Escalating to next model in chain for document {doc_id}")
                     continue
 
         # All models failed
+        logger.error(f"All models failed to process document {doc_id}")
         return InterfaceProcessingResult(
             success=False,
             error_message="All models failed to process the text",

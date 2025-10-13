@@ -1,5 +1,5 @@
 services:
-  postgres:
+  rebuilder:
     image: postgres:17
     container_name: simpla_postgres
     environment:
@@ -11,14 +11,14 @@ services:
     volumes:
       - ./norms_dump:/docker-entrypoint-initdb.d/simpla_dump.backup
       - ./restore.sh:/docker-entrypoint-initdb.d/restore.sh
-      - postgres_data:/var/lib/postgresql/data
+      - rebuilder_postgres_data:/var/lib/postgresql/data
     networks:
       - rag-network
 
 volumes:
-  postgres_data:
+  rebuilder_postgres_data:
 
 networks:
   rag-network:
-    external: true
     name: simpla_data_extraction_rag-network
+    external: true

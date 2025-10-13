@@ -6,7 +6,7 @@ Builds and exposes the raw database extracted through scraping from Infoleg (nor
 
 1. Download `norms_dump` from [Drive](https://drive.google.com/drive/folders/1NX9Za0Mv_XjeYyFhMv7WP5X1bkZsjoGR?usp=sharing)
 2. Place it in this directory
-3. Start the service: `docker-compose up -d`
+3. Start the service: `docker compose up -d`
 
 The Postgres database is:
 - Exposed on host port **5450**
@@ -15,11 +15,11 @@ The Postgres database is:
 
 ## Injecting Data into S3 Cache
 
-To populate the scraper's S3 cache (`simpla-cache`) with existing normas:
+To populate the scraper's S3 storage with existing normas:
 
 ```bash
 # From utils/migrator directory
-docker compose run --rm migrator pg-to-s3 simpla-cache \
+docker compose run --rm migrator pg-to-s3 simpla-scraper-storage \
   --pg-host simpla_postgres \
   --pg-database simpla \
   --format multiple \

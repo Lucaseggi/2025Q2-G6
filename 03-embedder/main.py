@@ -1,5 +1,8 @@
 """Main entry point for the embedding service (API + Queue Processing)"""
 
+import sys
+sys.path.insert(0, '/app/shared')
+
 import os
 import logging
 import threading

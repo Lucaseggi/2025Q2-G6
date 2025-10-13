@@ -80,19 +80,12 @@ class Migrator:
             return None
         return d.isoformat() if isinstance(d, date) else str(d)
 
-    def s3_to_postgres(self, prefix: str = "", dry_run: bool = False, batch_size: int = 100):
-        """
-        Migrate JSON objects from S3 to Postgres normas table.
-
-        Args:
-            prefix: S3 key prefix to filter objects
-            dry_run: If True, only show what would be migrated without inserting
-            batch_size: Number of records to insert per batch
-        """
+    def s3_to_postgres(self, batch_size: int = 100):
+        """Migrate JSON objects from S3 norms/ to Postgres normas table."""
         cursor = self.pg_conn.cursor()
 
         try:
-            objects = list(self.bucket.objects.filter(Prefix=prefix))
+            objects = list(self.bucket.objects.filter(Prefix="norms/"))
             json_objects = [obj for obj in objects if obj.key.endswith('.json')]
 
             print(f"Found {len(json_objects)} JSON objects in S3")
@@ -106,36 +99,35 @@ class Migrator:
                     content = response['Body'].read().decode('utf-8')
                     data = json.loads(content)
 
-                    # Handle both single object and array of objects
-                    items = data if isinstance(data, list) else [data]
+                    # Unwrap from cache format: data.scraping_data.infoleg_response
+                    item = data.get('data', {}).get('scraping_data', {}).get('infoleg_response', {})
 
-                    for item in items:
-                        if 'infoleg_id' not in item:
-                            print(f"Warning: Skipping object without infoleg_id in {obj.key}")
-                            skipped += 1
-                            continue
+                    if not item or 'infoleg_id' not in item:
+                        print(f"Warning: Skipping object without infoleg_id in {obj.key}")
+                        skipped += 1
+                        continue
 
-                        record = (
-                            item['infoleg_id'],
-                            item.get('jurisdiccion'),
-                            item.get('clase_norma'),
-                            item.get('tipo_norma'),
-                            self._parse_date(item.get('sancion')),
-                            json.dumps(item.get('id_normas')) if item.get('id_normas') else None,
-                            self._parse_date(item.get('publicacion')),
-                            item.get('titulo_sumario'),
-                            item.get('titulo_resumido'),
-                            item.get('observaciones'),
-                            item.get('nro_boletin'),
-                            item.get('pag_boletin'),
-                            item.get('texto_resumido'),
-                            item.get('texto_norma'),
-                            item.get('texto_norma_actualizado'),
-                            item.get('estado'),
-                            json.dumps(item.get('lista_normas_que_complementa')) if item.get('lista_normas_que_complementa') else None,
-                            json.dumps(item.get('lista_normas_que_la_complementan')) if item.get('lista_normas_que_la_complementan') else None,
-                        )
-                        records_to_insert.append(record)
+                    record = (
+                        item['infoleg_id'],
+                        item.get('jurisdiccion'),
+                        item.get('clase_norma'),
+                        item.get('tipo_norma'),
+                        self._parse_date(item.get('sancion')),
+                        json.dumps(item.get('id_normas')) if item.get('id_normas') else None,
+                        self._parse_date(item.get('publicacion')),
+                        item.get('titulo_sumario'),
+                        item.get('titulo_resumido'),
+                        item.get('observaciones'),
+                        item.get('nro_boletin'),
+                        item.get('pag_boletin'),
+                        item.get('texto_resumido'),
+                        item.get('texto_norma'),
+                        item.get('texto_norma_actualizado'),
+                        item.get('estado'),
+                        json.dumps(item.get('lista_normas_que_complementa')) if item.get('lista_normas_que_complementa') else None,
+                        json.dumps(item.get('lista_normas_que_la_complementan')) if item.get('lista_normas_que_la_complementan') else None,
+                    )
+                    records_to_insert.append(record)
 
                 except json.JSONDecodeError:
                     print(f"Warning: Failed to parse JSON from {obj.key}")
@@ -143,11 +135,6 @@ class Migrator:
                 except Exception as e:
                     print(f"Error processing {obj.key}: {e}")
                     skipped += 1
-
-            if dry_run:
-                print(f"\nDRY RUN: Would insert {len(records_to_insert)} records")
-                print(f"Skipped: {skipped}")
-                return
 
             # Batch insert with conflict handling
             insert_query = """
@@ -212,15 +199,8 @@ class Migrator:
         finally:
             cursor.close()
 
-    def postgres_to_s3(self, prefix: str = "export/", format: str = "single", dry_run: bool = False):
-        """
-        Export Postgres normas table to S3 as JSON.
-
-        Args:
-            prefix: S3 key prefix for exported files
-            format: 'single' (one file) or 'multiple' (one file per record)
-            dry_run: If True, only show what would be exported without uploading
-        """
+    def postgres_to_s3(self):
+        """Export Postgres normas table to S3 norms/ as individual wrapped JSON files."""
         cursor = self.pg_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         try:
@@ -229,16 +209,16 @@ class Migrator:
 
             print(f"Found {len(records)} records in Postgres")
 
-            if dry_run:
-                print(f"\nDRY RUN: Would export {len(records)} records to S3 with prefix '{prefix}'")
-                return
+            exported = 0
+            start_time = time.time()
+            last_log_time = start_time
 
-            if format == "single":
-                # Export all records to a single JSON file
-                data = []
-                for record in records:
+            for record in records:
+                try:
                     item = dict(record)
-                    # Serialize dates and handle jsonb
+                    # Remove auto-increment id field
+                    item.pop('id', None)
+
                     item['sancion'] = self._serialize_date(item.get('sancion'))
                     item['publicacion'] = self._serialize_date(item.get('publicacion'))
                     if isinstance(item.get('id_normas'), str):
@@ -247,60 +227,51 @@ class Migrator:
                         item['lista_normas_que_complementa'] = json.loads(item['lista_normas_que_complementa'])
                     if isinstance(item.get('lista_normas_que_la_complementan'), str):
                         item['lista_normas_que_la_complementan'] = json.loads(item['lista_normas_que_la_complementan'])
-                    data.append(item)
 
-                key = f"{prefix}normas_export_{datetime.now().isoformat()}.json"
-                self.s3_client.put_object(
-                    Bucket=self.bucket_name,
-                    Key=key,
-                    Body=json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8'),
-                    ContentType='application/json'
-                )
-                print(f"Exported {len(records)} records to s3://{self.bucket_name}/{key}")
+                    # Wrap data in scraper's expected cache format
+                    wrapped_data = {
+                        "cached_at": datetime.now().isoformat(),
+                        "cache_version": "1.0",
+                        "data": {
+                            "scraping_data": {
+                                "infoleg_response": item,
+                                "scraper_metadata": {
+                                    "api_url": f"migrator://postgres/{item['infoleg_id']}",
+                                    "scraper_version": "1.0",
+                                    "has_full_text": bool(item.get('texto_norma')),
+                                    "scraping_timestamp": datetime.now().isoformat(),
+                                    "from_cache": False
+                                }
+                            }
+                        }
+                    }
 
-            else:  # multiple files
-                exported = 0
-                start_time = time.time()
-                last_log_time = start_time
+                    key = f"norms/{item['infoleg_id']}.json"
+                    self.s3_client.put_object(
+                        Bucket=self.bucket_name,
+                        Key=key,
+                        Body=json.dumps(wrapped_data, indent=2, ensure_ascii=False).encode('utf-8'),
+                        ContentType='application/json'
+                    )
+                    exported += 1
 
-                for record in records:
-                    try:
-                        item = dict(record)
-                        item['sancion'] = self._serialize_date(item.get('sancion'))
-                        item['publicacion'] = self._serialize_date(item.get('publicacion'))
-                        if isinstance(item.get('id_normas'), str):
-                            item['id_normas'] = json.loads(item['id_normas'])
-                        if isinstance(item.get('lista_normas_que_complementa'), str):
-                            item['lista_normas_que_complementa'] = json.loads(item['lista_normas_que_complementa'])
-                        if isinstance(item.get('lista_normas_que_la_complementan'), str):
-                            item['lista_normas_que_la_complementan'] = json.loads(item['lista_normas_que_la_complementan'])
+                    current_time = time.time()
 
-                        key = f"{prefix}{item['infoleg_id']}.json"
-                        self.s3_client.put_object(
-                            Bucket=self.bucket_name,
-                            Key=key,
-                            Body=json.dumps(item, indent=2, ensure_ascii=False).encode('utf-8'),
-                            ContentType='application/json'
-                        )
-                        exported += 1
+                    # Log every 10 seconds OR at milestones
+                    if (current_time - last_log_time >= 10) or (exported % 10000 == 0) or (exported == len(records)):
+                        elapsed = current_time - start_time
+                        rate = exported / elapsed if elapsed > 0 else 0
+                        eta = (len(records) - exported) / rate if rate > 0 else 0
+                        print(f"Progress: {exported}/{len(records)} ({exported*100//len(records)}%) | "
+                              f"Rate: {rate:.1f} rec/s | Elapsed: {elapsed:.0f}s | ETA: {eta:.0f}s")
+                        last_log_time = current_time
 
-                        current_time = time.time()
+                except Exception as e:
+                    print(f"Error exporting record {item.get('infoleg_id', 'unknown')}: {e}", file=sys.stderr)
+                    continue
 
-                        # Log every 10 seconds OR at milestones
-                        if (current_time - last_log_time >= 10) or (exported % 10000 == 0) or (exported == len(records)):
-                            elapsed = current_time - start_time
-                            rate = exported / elapsed if elapsed > 0 else 0
-                            eta = (len(records) - exported) / rate if rate > 0 else 0
-                            print(f"Progress: {exported}/{len(records)} ({exported*100//len(records)}%) | "
-                                  f"Rate: {rate:.1f} rec/s | Elapsed: {elapsed:.0f}s | ETA: {eta:.0f}s")
-                            last_log_time = current_time
-
-                    except Exception as e:
-                        print(f"Error exporting record {item.get('infoleg_id', 'unknown')}: {e}", file=sys.stderr)
-                        continue
-
-                elapsed_total = time.time() - start_time
-                print(f"\n✓ Exported {exported} records to s3://{self.bucket_name}/{prefix} in {elapsed_total:.1f}s")
+            elapsed_total = time.time() - start_time
+            print(f"\n✓ Exported {exported} records to s3://{self.bucket_name}/norms/ in {elapsed_total:.1f}s")
 
         except Exception as e:
             print(f"Error during export: {e}", file=sys.stderr)
@@ -319,66 +290,35 @@ def load_config() -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="S3 ↔ Postgres Migrator for normas table",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-
-    parser.add_argument('direction', choices=['s3-to-pg', 'pg-to-s3'],
-                        help='Migration direction')
-    parser.add_argument('bucket', help='S3 bucket name')
-
-    # Postgres config
-    parser.add_argument('--pg-host', help='Postgres host')
-    parser.add_argument('--pg-port', type=int, help='Postgres port')
-    parser.add_argument('--pg-database', help='Postgres database')
-    parser.add_argument('--pg-user', help='Postgres user')
-    parser.add_argument('--pg-password', help='Postgres password')
-
-    # S3 config
-    parser.add_argument('--s3-endpoint', help='S3 endpoint URL')
-    parser.add_argument('--s3-access-key', help='S3 access key')
-    parser.add_argument('--s3-secret-key', help='S3 secret key')
-    parser.add_argument('--s3-region', help='S3 region')
-
-    # Operation config
-    parser.add_argument('--prefix', default='', help='S3 key prefix')
-    parser.add_argument('--format', choices=['single', 'multiple'], default='single',
-                        help='Export format for pg-to-s3 (default: single)')
-    parser.add_argument('--batch-size', type=int, default=100,
-                        help='Batch size for s3-to-pg (default: 100)')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='Show what would be done without executing')
-    parser.add_argument('--no-config', action='store_true',
-                        help='Do not load config.json')
+    parser = argparse.ArgumentParser(description="S3 ↔ Postgres Migrator for normas table")
+    parser.add_argument('direction', choices=['s3-to-pg', 'pg-to-s3'], help='Migration direction')
+    parser.add_argument('--batch-size', type=int, default=100, help='Batch size for s3-to-pg (default: 100)')
 
     args = parser.parse_args()
-
-    # Load config and merge with CLI args
-    config = {} if args.no_config else load_config()
+    config = load_config()
 
     pg_config = config.get('postgres', {})
     s3_config = config.get('s3', {})
 
     # Create migrator
     migrator = Migrator(
-        pg_host=args.pg_host or pg_config.get('host', 'localhost'),
-        pg_port=args.pg_port or pg_config.get('port', 5432),
-        pg_database=args.pg_database or pg_config.get('database', 'simpla_rag'),
-        pg_user=args.pg_user or pg_config.get('user', 'postgres'),
-        pg_password=args.pg_password or pg_config.get('password', ''),
-        s3_bucket=args.bucket,
-        s3_endpoint=args.s3_endpoint or s3_config.get('endpoint'),
-        s3_access_key=args.s3_access_key or s3_config.get('access_key'),
-        s3_secret_key=args.s3_secret_key or s3_config.get('secret_key'),
-        s3_region=args.s3_region or s3_config.get('region', 'us-east-1')
+        pg_host=pg_config.get('host', 'localhost'),
+        pg_port=pg_config.get('port', 5432),
+        pg_database=pg_config.get('database', 'simpla'),
+        pg_user=pg_config.get('user', 'postgres'),
+        pg_password=pg_config.get('password', ''),
+        s3_bucket=s3_config.get('bucket', 'simpla-scraper-storage'),
+        s3_endpoint=s3_config.get('endpoint'),
+        s3_access_key=s3_config.get('access_key'),
+        s3_secret_key=s3_config.get('secret_key'),
+        s3_region=s3_config.get('region', 'us-east-1')
     )
 
     # Execute migration
     if args.direction == 's3-to-pg':
-        migrator.s3_to_postgres(prefix=args.prefix, dry_run=args.dry_run, batch_size=args.batch_size)
+        migrator.s3_to_postgres(batch_size=args.batch_size)
     else:
-        migrator.postgres_to_s3(prefix=args.prefix, format=args.format, dry_run=args.dry_run)
+        migrator.postgres_to_s3()
 
 
 if __name__ == "__main__":

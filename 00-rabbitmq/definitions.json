@@ -27,21 +27,28 @@
   ],
   "queues": [
     {
-      "name": "processing-queue",
+      "name": "purifying",
       "vhost": "/",
       "durable": true,
       "auto_delete": false,
       "arguments": {}
     },
     {
-      "name": "embedding-queue",
+      "name": "processing",
       "vhost": "/",
       "durable": true,
       "auto_delete": false,
       "arguments": {}
     },
     {
-      "name": "inserting-queue",
+      "name": "embedding",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "inserting",
       "vhost": "/",
       "durable": true,
       "auto_delete": false,

@@ -1,0 +1,246 @@
+# Docker Compose configuration with Sidecar Logging Pattern
+# This extends the main docker-compose.yml with logging infrastructure
+# Run with: docker compose -f docker-compose.yml -f docker-compose.logging.yml up
+
+services:
+  # ============= LOGGING BACKEND =============
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./logging-config/loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - ./logging-config/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  # ============= SCRAPER POD =============
+  scraper:
+    environment:
+      - LOG_FILE=/app/logs/app.log
+    volumes:
+      - scraper-logs:/app/logs
+
+  scraper-sidecar:
+    image: fluent/fluent-bit:2.1
+    container_name: scraper-sidecar
+    volumes:
+      - scraper-logs:/app/logs:ro
+      - ./logging-config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./logging-config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+    environment:
+      - SERVICE_NAME=scraper
+      - SERVICE_TYPE=api
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      - scraper
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  # ============= PURIFIER POD =============
+  purifier-api:
+    environment:
+      - LOG_FILE=/app/logs/app.log
+    volumes:
+      - purifier-api-logs:/app/logs
+
+  purifier-api-sidecar:
+    image: fluent/fluent-bit:2.1
+    container_name: purifier-api-sidecar
+    volumes:
+      - purifier-api-logs:/app/logs:ro
+      - ./logging-config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./logging-config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+    environment:
+      - SERVICE_NAME=purifier
+      - SERVICE_TYPE=api
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      - purifier-api
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  purifier-worker:
+    environment:
+      - LOG_FILE=/app/logs/app.log
+    volumes:
+      - purifier-worker-logs:/app/logs
+
+  purifier-worker-sidecar:
+    image: fluent/fluent-bit:2.1
+    volumes:
+      - purifier-worker-logs:/app/logs:ro
+      - ./logging-config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./logging-config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+    environment:
+      - SERVICE_NAME=purifier
+      - SERVICE_TYPE=worker
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      - purifier-worker
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  # ============= PROCESSOR POD =============
+  processor-api:
+    environment:
+      - LOG_FILE=/app/logs/app.log
+    volumes:
+      - processor-api-logs:/app/logs
+
+  processor-api-sidecar:
+    image: fluent/fluent-bit:2.1
+    container_name: processor-api-sidecar
+    volumes:
+      - processor-api-logs:/app/logs:ro
+      - ./logging-config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./logging-config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+    environment:
+      - SERVICE_NAME=processor
+      - SERVICE_TYPE=api
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      - processor-api
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  processor-worker:
+    environment:
+      - LOG_FILE=/app/logs/app.log
+    volumes:
+      - processor-worker-logs:/app/logs
+
+  processor-worker-sidecar:
+    image: fluent/fluent-bit:2.1
+    volumes:
+      - processor-worker-logs:/app/logs:ro
+      - ./logging-config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./logging-config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+    environment:
+      - SERVICE_NAME=processor
+      - SERVICE_TYPE=worker
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      - processor-worker
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  # ============= EMBEDDER POD =============
+  embedder-api:
+    environment:
+      - LOG_FILE=/app/logs/app.log
+    volumes:
+      - embedder-api-logs:/app/logs
+
+  embedder-api-sidecar:
+    image: fluent/fluent-bit:2.1
+    container_name: embedder-api-sidecar
+    volumes:
+      - embedder-api-logs:/app/logs:ro
+      - ./logging-config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./logging-config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+    environment:
+      - SERVICE_NAME=embedder
+      - SERVICE_TYPE=api
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      - embedder-api
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  embedder-worker:
+    environment:
+      - LOG_FILE=/app/logs/app.log
+    volumes:
+      - embedder-worker-logs:/app/logs
+
+  embedder-worker-sidecar:
+    image: fluent/fluent-bit:2.1
+    volumes:
+      - embedder-worker-logs:/app/logs:ro
+      - ./logging-config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./logging-config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+    environment:
+      - SERVICE_NAME=embedder
+      - SERVICE_TYPE=worker
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      - embedder-worker
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  # ============= INSERTER POD =============
+  inserter:
+    environment:
+      - LOG_FILE=/app/logs/app.log
+    volumes:
+      - inserter-logs:/app/logs
+
+  inserter-sidecar:
+    image: fluent/fluent-bit:2.1
+    volumes:
+      - inserter-logs:/app/logs:ro
+      - ./logging-config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./logging-config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+    environment:
+      - SERVICE_NAME=inserter
+      - SERVICE_TYPE=worker
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      - inserter
+      - loki
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+volumes:
+  loki-data:
+  grafana-data:
+  scraper-logs:
+  purifier-api-logs:
+  purifier-worker-logs:
+  processor-api-logs:
+  processor-worker-logs:
+  embedder-api-logs:
+  embedder-worker-logs:
+  inserter-logs:
+
+networks:
+  rag-network:
+    name: simpla_data_extraction_rag-network

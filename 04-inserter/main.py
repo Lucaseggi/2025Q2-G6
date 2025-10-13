@@ -1,15 +1,19 @@
 import json
 import os
 import sys
+import time
 from datetime import datetime
 
 from shared.rabbitmq_client import RabbitMQClient
 from shared.models import ProcessedData
+from shared.structured_logger import StructuredLogger, LogStage
 
 # Force output flushing
 import functools
 print = functools.partial(print, flush=True)
 from grpc_clients import GrpcServiceClients
+
+logger = StructuredLogger("inserter", "worker")
 
 def transform_to_legacy_format(message_body):
     """Transform new ProcessedData format to legacy format expected by relational-ms"""
@@ -71,14 +75,18 @@ def transform_to_legacy_format(message_body):
         }
 
     except Exception as e:
-        print(f"[{datetime.now()}] Error transforming data format: {e}")
+        logger.error(
+            f"Error transforming data format: {str(e)}",
+            stage=LogStage.DATA_TRANSFORMATION,
+            error_type=type(e).__name__
+        )
         return message_body  # Return original if transformation fails
 
 def create_queue_client():
     return RabbitMQClient()
 
 def main():
-    print("Inserter MS started - listening for messages...")
+    logger.info("Inserter MS started - listening for messages", stage=LogStage.STARTUP)
 
     queue_client = create_queue_client()
     grpc_clients = GrpcServiceClients()
@@ -88,8 +96,9 @@ def main():
             # Receive message from inserting queue
             message_body = queue_client.receive_message('inserting', timeout=20)
 
-
             if message_body:
+                start_time = time.time()
+
                 # Get document ID for logging
                 try:
                     # Try new ProcessedData structure first
@@ -100,6 +109,13 @@ def main():
                         doc_id = message_body['data']['norma']['infoleg_id']
                     except (KeyError, TypeError):
                         doc_id = "unknown"
+
+                logger.log_message_received(
+                    queue_name='inserting',
+                    infoleg_id=doc_id
+                )
+
+                logger.log_processing_start(infoleg_id=doc_id)
                 print(f"[{datetime.now()}] Received message for norma {doc_id}")
 
                 # Dump message_body to file for demo purposes
@@ -115,16 +131,37 @@ def main():
                 legacy_format_data = transform_to_legacy_format(message_body)
 
                 # Call sequential pipeline: relational-ms → vectorial-ms
+                # Note: relational-ms gets legacy format, vectorial-ms gets original format with embeddings
+                logger.info(
+                    "Inserting to databases",
+                    stage=LogStage.INSERTION,
+                    infoleg_id=doc_id
+                )
+
+                pipeline_result = grpc_clients.call_both_services_sequential(legacy_format_data, message_body)
                 pipeline_result = grpc_clients.call_both_services_sequential(legacy_format_data)
 
-                print(f"[{datetime.now()}] === Pipeline Results for norma {doc_id} ===")
-                print(f"[{datetime.now()}] Relational MS: {'SUCCESS' if pipeline_result['relational']['success'] else 'FAILED'} - {pipeline_result['relational']['message']}")
-                print(f"[{datetime.now()}] Vectorial MS: {'SUCCESS' if pipeline_result['vectorial']['success'] else 'FAILED'} - {pipeline_result['vectorial']['message']}")
-                print(f"[{datetime.now()}] Pipeline: {'SUCCESS' if pipeline_result['pipeline_success'] else 'FAILED'}")
-                print(f"[{datetime.now()}] =============================================")
+                duration_ms = (time.time() - start_time) * 1000
+
+                if pipeline_result['pipeline_success']:
+                    logger.log_processing_complete(
+                        infoleg_id=doc_id,
+                        duration_ms=duration_ms,
+                        relational_success=pipeline_result['relational']['success'],
+                        vectorial_success=pipeline_result['vectorial']['success']
+                    )
+                else:
+                    logger.log_processing_failed(
+                        infoleg_id=doc_id,
+                        error=f"Relational: {pipeline_result['relational']['message']}, Vectorial: {pipeline_result['vectorial']['message']}"
+                    )
 
         except Exception as e:
-            print(f"[{datetime.now()}] Inserter: Error: {e}")
+            logger.error(
+                f"Error in processing loop: {str(e)}",
+                stage=LogStage.QUEUE_ERROR,
+                error_type=type(e).__name__
+            )
 
 if __name__ == "__main__":
     main()

@@ -14,4 +14,4 @@ SELECT
         ELSE 'no_text'
     END AS text_source
 FROM normas
-WHERE infoleg_id = 818;
+WHERE infoleg_id = 183207;

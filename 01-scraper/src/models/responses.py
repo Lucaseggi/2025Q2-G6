@@ -62,6 +62,27 @@ class ProcessResponse(BaseModel):
     }
 
 
+class ReplayResponse(BaseModel):
+    """Response model for replay operations"""
+    status: Literal["success", "error"]
+    message: str
+    infoleg_id: int
+    cache_hit: bool = Field(description="Whether data was found in cache")
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "status": "success",
+                "message": "Successfully replayed norm 183532 to purifying queue",
+                "infoleg_id": 183532,
+                "cache_hit": True,
+                "timestamp": "2024-01-15T10:30:00"
+            }
+        }
+    }
+
+
 class ErrorResponse(BaseModel):
     """Error response model"""
     status: Literal["error"] = "error"

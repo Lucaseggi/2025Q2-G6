@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Services that need shared folder
-SERVICES=("01-scraper" "02-processor" "03-embedder" "04-inserter")
+SERVICES=("01-scraper" "02-processor" "02.5-purifier" "03-embedder" "04-inserter")
 
 # Folder names
 SOURCE_FOLDER="shared"

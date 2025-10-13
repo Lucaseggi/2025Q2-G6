@@ -106,3 +106,49 @@ class StorageService(StorageInterface):
         except Exception as e:
             logger.error(f"Error deleting stored data for key {key}: {e}")
             return False
+
+    def get(self, key: str) -> Dict[str, Any]:
+        """Retrieve data from storage by key"""
+        try:
+            logger.debug(f"Retrieving from storage: {key}")
+            response = self.s3_client.get_object(
+                Bucket=self.bucket_name,
+                Key=key
+            )
+
+            content = response['Body'].read().decode('utf-8')
+            data = json.loads(content)
+
+            logger.debug(f"Found data for key: {key}")
+            return data
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == 'NoSuchKey':
+                logger.debug(f"Key not found in storage: {key}")
+                return None
+            else:
+                logger.error(f"Error retrieving from storage {key}: {e}")
+                return None
+        except Exception as e:
+            logger.error(f"Unexpected error retrieving from storage {key}: {e}")
+            return None
+
+    def store_failed_processing(self, infoleg_id: int, failed_data: Dict[str, Any]) -> bool:
+        """Store failed processing data for later analysis"""
+        try:
+            key = f"failed_norms/{infoleg_id}.json"
+
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=key,
+                Body=json.dumps(failed_data, indent=2, ensure_ascii=False),
+                ContentType='application/json'
+            )
+
+            logger.info(f"Stored failed processing data for norm {infoleg_id} in S3")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error storing failed processing data for norm {infoleg_id}: {e}")
+            return False

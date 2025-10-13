@@ -12,7 +12,7 @@
     "vhost": "/"
   },
   "s3": {
-    "bucket_name": "simpla-cache",
+    "bucket_name": "simpla-scraper-storage",
     "endpoint": "http://localstack:4566",
     "region": "us-east-1"
   },

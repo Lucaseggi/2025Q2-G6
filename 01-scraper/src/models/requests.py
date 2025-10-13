@@ -29,3 +29,18 @@ class ProcessRequest(BaseModel):
             }
         }
     }
+
+
+class ReplayRequest(BaseModel):
+    """Request model for replaying a norm from cache"""
+    infoleg_id: int = Field(gt=0, description="Positive integer norm ID to replay from cache")
+    force: bool = Field(default=False, description="Force replay even if already in queue")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "infoleg_id": 183532,
+                "force": False
+            }
+        }
+    }

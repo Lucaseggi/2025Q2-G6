@@ -16,4 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt -r shared_requirements.txt
 COPY shared ./shared
 COPY . .
 
+# Create logs directory for structured logging
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]

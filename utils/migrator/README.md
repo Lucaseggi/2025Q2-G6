@@ -1,80 +1,44 @@
 # S3 ↔ Postgres Migrator
 
-Bidirectional sync utility for `normas` table data between S3 (JSON format) and Postgres.
+Bidirectional sync utility for `normas` table between S3 (`norms/` prefix, wrapped JSON format) and Postgres.
 
 ## Features
 
-- **S3 → Postgres**: Scan S3 bucket, parse JSON files, bulk insert into normas table
-- **Postgres → S3**: Export normas table to JSON (single file or multiple files)
+- **Postgres → S3**: Export normas table to individual wrapped JSON files in `norms/`
+- **S3 → Postgres**: Import wrapped JSON files from `norms/` into normas table
 - Handles JSONB fields and date serialization
 - Batch processing with conflict resolution (upsert on infoleg_id)
-- Dry-run mode to preview changes
-
-## Quick Start
-
-```bash
-# Using Docker Compose
-docker-compose run --rm migrator s3-to-pg my-bucket
-docker-compose run --rm migrator pg-to-s3 my-bucket
-
-# Using Python
-pip install -r requirements.txt
-python migrator.py s3-to-pg my-bucket
-python migrator.py pg-to-s3 my-bucket
-```
-
-## Configuration
-
-Pre-configured in `config.json` for LocalStack and local Postgres:
-
-```json
-{
-  "postgres": {
-    "host": "localhost",
-    "port": 5432,
-    "database": "simpla_rag",
-    "user": "postgres",
-    "password": "postgres"
-  },
-  "s3": {
-    "endpoint": "http://localhost:4566",
-    "access_key": "test",
-    "secret_key": "test"
-  }
-}
-```
+- Idempotent operations
 
 ## Usage
 
-### S3 → Postgres
-
 ```bash
-# Migrate all JSON files from bucket
-python migrator.py s3-to-pg my-bucket
+# Export Postgres to S3
+docker compose run --rm migrator pg-to-s3
 
-# Migrate with prefix filter
-python migrator.py s3-to-pg my-bucket --prefix normas/
+# Import S3 to Postgres
+docker compose run --rm migrator s3-to-pg
 
-# Dry run (preview only)
-python migrator.py s3-to-pg my-bucket --dry-run
-
-# Custom batch size
-python migrator.py s3-to-pg my-bucket --batch-size 500
+# Custom batch size for import
+docker compose run --rm migrator s3-to-pg --batch-size 500
 ```
 
-### Postgres → S3
+## JSON Format
 
-```bash
-# Export to single JSON file
-python migrator.py pg-to-s3 my-bucket --prefix export/
+Files are stored in `norms/{infoleg_id}.json` with this structure:
 
-# Export to multiple files (one per record)
-python migrator.py pg-to-s3 my-bucket --format multiple --prefix normas/
-
-# Dry run
-python migrator.py pg-to-s3 my-bucket --dry-run
+```json
+{
+  "cached_at": "2025-10-04T17:33:00.727549",
+  "cache_version": "1.0",
+  "data": {
+    "scraping_data": {
+      "infoleg_response": {
+        "infoleg_id": "...",
+        "jurisdiccion": "...",
+        ...
+      }
+    }
+  }
+}
 ```
-
-## Schema
-
-The migrator works with the `normas` table schema with fields including `infoleg_id` (unique), dates, JSONB arrays, and text fields.

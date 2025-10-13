@@ -14,10 +14,12 @@ class RabbitMQClient:
         self.connect()
         
         # Define queue names
+        # Naming convention: scraper(s) -> purifying, purifier(s) -> processing, processor(s) -> embedding, embedder(s) -> inserting
         self.queues = {
-            'processing': 'processing-queue',
-            'embedding': 'embedding-queue', 
-            'inserting': 'inserting-queue'
+            'purifying': 'purifying',
+            'processing': 'processing',
+            'embedding': 'embedding',
+            'inserting': 'inserting'
         }
         
         # Declare all queues
@@ -28,10 +30,10 @@ class RabbitMQClient:
         try:
             host = os.getenv('RABBITMQ_HOST', 'rabbitmq')
             port = int(os.getenv('RABBITMQ_PORT', '5672'))
-            username = os.getenv('RABBITMQ_USER', 'admin') 
+            username = os.getenv('RABBITMQ_USER', 'admin')
             password = os.getenv('RABBITMQ_PASSWORD', 'admin123')
             vhost = os.getenv('RABBITMQ_VHOST', '/')
-            
+
             credentials = pika.PlainCredentials(username, password)
             parameters = pika.ConnectionParameters(
                 host=host,
@@ -41,11 +43,16 @@ class RabbitMQClient:
                 heartbeat=600,
                 blocked_connection_timeout=300
             )
-            
+
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
+
+            # Set QoS to prevent consuming all messages at once
+            # This ensures workers only process one message at a time
+            self.channel.basic_qos(prefetch_count=1)
+
             logger.info(f"Connected to RabbitMQ at {host}:{port}")
-            
+
         except Exception as e:
             logger.error(f"Failed to connect to RabbitMQ: {e}")
             raise
@@ -69,6 +76,8 @@ class RabbitMQClient:
             elif self.channel is None or self.channel.is_closed:
                 logger.warning("Channel lost, recreating...")
                 self.channel = self.connection.channel()
+                # Reapply QoS settings after channel recreation
+                self.channel.basic_qos(prefetch_count=1)
                 self._declare_queues()
         except Exception as e:
             logger.error(f"Failed to ensure connection: {e}")
