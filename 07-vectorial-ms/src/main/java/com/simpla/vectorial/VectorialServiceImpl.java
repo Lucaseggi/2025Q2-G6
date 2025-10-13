@@ -17,6 +17,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceImplBase {
 
+    private static final String DIVISION = "division";
+    private static final String ARTICLE = "article";
+
     private final VectorStoreService vectorStore;
     private final ObjectMapper objectMapper;
 
@@ -58,6 +61,9 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
             Integer infolegId = null;
             String tipoNorma = "";
             String jurisdiccion = "";
+            String fechaDeSancion = "";
+            Integer nroBoletin = null;
+            String tituloSumario = "";
 
             // Try new ProcessedData format first
             JsonNode scrapingDataNode = rootNode.path("scraping_data");
@@ -70,6 +76,9 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
                     infolegId = infolegResponse.path("infoleg_id").asInt();
                     tipoNorma = infolegResponse.path("tipo_norma").asText("");
                     jurisdiccion = infolegResponse.path("jurisdiccion").asText("");
+                    fechaDeSancion = infolegResponse.path("sancion").asText("");
+                    nroBoletin = infolegResponse.path("nro_boletin").asInt();
+                    tituloSumario = infolegResponse.path("titulo_sumario").asText("");
 
                     // Get structured data from processing_data.parsings.original_text.structured_data
                     if (!processingData.isMissingNode()) {
@@ -92,6 +101,9 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
                 infolegId = normaNode.path("infoleg_id").asInt();
                 tipoNorma = normaNode.path("tipo_norma").asText("");
                 jurisdiccion = normaNode.path("jurisdiccion").asText("");
+                fechaDeSancion = normaNode.path("sancion").asText("");
+                nroBoletin = normaNode.path("nro_boletin").asInt();
+                tituloSumario = normaNode.path("titulo_sumario").asText("");
                 structuredDataNode = normaNode.path("structured_texto_norma");
             }
 
@@ -105,7 +117,8 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
             if (!structuredDataNode.isMissingNode()) {
                 JsonNode divisions = structuredDataNode.path("divisions");
                 if (divisions.isArray()) {
-                    processDivisions(divisions, infolegId, tipoNorma, jurisdiccion,
+                    processDivisions(divisions, infolegId, tipoNorma,
+                            jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario,
                                    "texto_norma", documentCount, errors);
                 }
             }
@@ -116,7 +129,7 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
                 if (!structuredTextoNormaActualizado.isMissingNode()) {
                     JsonNode divisions = structuredTextoNormaActualizado.path("divisions");
                     if (divisions.isArray()) {
-                        processDivisions(divisions, infolegId, tipoNorma, jurisdiccion,
+                        processDivisions(divisions, infolegId, tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario,
                                        "texto_norma_actualizado", documentCount, errors);
                     }
                 }
@@ -154,16 +167,16 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
     }
 
     private void processDivisions(JsonNode divisionsArray, Integer infolegId, String tipoNorma,
-                                 String jurisdiccion, String source, AtomicInteger documentCount,
+                                 String jurisdiccion, String fechaDeSancion, Integer nroBoletin, String tituloSumario, String source, AtomicInteger documentCount,
                                  List<String> errors) {
         for (int i = 0; i < divisionsArray.size(); i++) {
             JsonNode division = divisionsArray.get(i);
-            processDivision(division, infolegId, tipoNorma, jurisdiccion, source, i, documentCount, errors);
+            processDivision(division, infolegId, tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario, source, i, documentCount, errors);
         }
     }
 
     private void processDivision(JsonNode division, Integer infolegId, String tipoNorma,
-                                String jurisdiccion, String source, int divisionIndex,
+                                String jurisdiccion, String fechaDeSancion, Integer nroBoletin, String tituloSumario, String source, int divisionIndex,
                                 AtomicInteger documentCount, List<String> errors) {
         String divisionName = division.path("name").asText("Unknown");
         System.out.println("Processing division " + divisionIndex + ": " + divisionName);
@@ -176,7 +189,7 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
 
         if (!embeddingNode.isMissingNode() && embeddingNode.isArray()) {
             // Store division embedding
-            String documentId = String.format("norma_%d_%s_division_%d", infolegId, source, divisionIndex);
+            String documentId = String.format("n%d_d%d", infolegId, division.path("id").asInt());
             System.out.println("Attempting to store division: " + documentId);
 
             List<Double> embedding = new ArrayList<>();
@@ -184,7 +197,11 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
                 embedding.add(embeddingValue.asDouble());
             }
 
-            Map<String, Object> metadata = createDivisionMetadata(division, infolegId, tipoNorma, jurisdiccion, source, divisionIndex);
+            Map<String, Object> metadata = createDocumentMetadata(
+                    DIVISION, division.path("id").asInt(),
+                    source, infolegId,
+                    tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario);
+
 
             VectorStoreService.StoreResult result = vectorStore.storeDocument(documentId, embedding, metadata);
             if (result.isSuccess()) {
@@ -201,33 +218,37 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
         // Process articles in this division
         JsonNode articlesNode = division.path("articles");
         if (!articlesNode.isMissingNode() && articlesNode.isArray()) {
-            processArticles(articlesNode, infolegId, tipoNorma, jurisdiccion, source, divisionIndex, documentCount, errors);
+            processArticles(articlesNode, infolegId, tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario, source, divisionIndex, documentCount, errors);
         }
 
         // Process nested divisions recursively
         JsonNode nestedDivisionsNode = division.path("divisions");
         if (!nestedDivisionsNode.isMissingNode() && nestedDivisionsNode.isArray()) {
-            processDivisions(nestedDivisionsNode, infolegId, tipoNorma, jurisdiccion, source, documentCount, errors);
+            processDivisions(nestedDivisionsNode, infolegId, tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario, source, documentCount, errors);
         }
     }
 
     private void processArticles(JsonNode articlesArray, Integer infolegId, String tipoNorma,
-                                String jurisdiccion, String source, int divisionIndex,
+                                String jurisdiccion, String fechaDeSancion, Integer nroBoletin, String tituloSumario, String source, int divisionIndex,
                                 AtomicInteger documentCount, List<String> errors) {
         for (int i = 0; i < articlesArray.size(); i++) {
             JsonNode article = articlesArray.get(i);
 
             JsonNode embeddingNode = article.path("embedding");
             if (!embeddingNode.isMissingNode() && embeddingNode.isArray()) {
-                String documentId = String.format("norma_%d_%s_division_%d_article_%d",
-                                                infolegId, source, divisionIndex, i);
+                String documentId = String.format("n%d_a%d",
+                        infolegId,
+                        article.path("id").asInt());
 
                 List<Double> embedding = new ArrayList<>();
                 for (JsonNode embeddingValue : embeddingNode) {
                     embedding.add(embeddingValue.asDouble());
                 }
 
-                Map<String, Object> metadata = createArticleMetadata(article, infolegId, tipoNorma, jurisdiccion, source, divisionIndex, i);
+                Map<String, Object> metadata = createDocumentMetadata(
+                        ARTICLE, article.path("id").asInt(),
+                        source, infolegId,
+                        tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario);
 
                 VectorStoreService.StoreResult result = vectorStore.storeDocument(documentId, embedding, metadata);
                 if (result.isSuccess()) {
@@ -237,61 +258,39 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
                     errors.add("Article " + documentId + ": " + result.getMessage());
                 }
             }
+
+            JsonNode articlesNode = article.path("articles");
+            if (!articlesNode.isMissingNode() && articlesNode.isArray()) {
+                processArticles(articlesNode, infolegId, tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario, source, divisionIndex, documentCount, errors);
+            }
         }
     }
 
-    private Map<String, Object> createDivisionMetadata(JsonNode division, Integer infolegId, String tipoNorma,
-                                                      String jurisdiccion, String source, int divisionIndex) {
+    private Map<String, Object> createDocumentMetadata(
+            String documentType, Integer documentId,
+            String source, Integer sourceId,
+            String tipoNorma,
+            String jurisdiccion, String fechaDeSancion,
+            Integer nroBoletin, String tituloSumario
+    ) {
         Map<String, Object> metadata = new HashMap<>();
 
         // Basic norm identification
-        metadata.put("infoleg_id", infolegId);
+        metadata.put("source", source);
+        metadata.put("source_id", sourceId);
+        metadata.put("document_type", documentType);
+        metadata.put("document_id", documentId);
+
+        // Filters
         metadata.put("tipo_norma", tipoNorma);
         metadata.put("jurisdiccion", jurisdiccion);
-        metadata.put("source", source);
-
-        // Document type and structure
-        metadata.put("document_type", "division");
-        metadata.put("division_index", divisionIndex);
-
-        // Division-specific metadata
-        metadata.put("division_name", division.path("name").asText(""));
-        metadata.put("division_ordinal", division.path("ordinal").asText(""));
-        metadata.put("division_title", division.path("title").asText(""));
-
-        // Order information for reconstruction
-        if (!division.path("order").isMissingNode()) {
-            metadata.put("division_order", division.path("order").asInt());
-        }
+        metadata.put("fecha_de_sancion", fechaDeSancion);
+        metadata.put("nro_boletin", nroBoletin);
+        metadata.put("titulo_sumario", tituloSumario);
 
         return metadata;
     }
 
-    private Map<String, Object> createArticleMetadata(JsonNode article, Integer infolegId, String tipoNorma,
-                                                     String jurisdiccion, String source, int divisionIndex, int articleIndex) {
-        Map<String, Object> metadata = new HashMap<>();
-
-        // Basic norm identification
-        metadata.put("infoleg_id", infolegId);
-        metadata.put("tipo_norma", tipoNorma);
-        metadata.put("jurisdiccion", jurisdiccion);
-        metadata.put("source", source);
-
-        // Document type and structure
-        metadata.put("document_type", "article");
-        metadata.put("division_index", divisionIndex);
-        metadata.put("article_index", articleIndex);
-
-        // Article-specific metadata
-        metadata.put("article_ordinal", article.path("ordinal").asText(""));
-
-        // Order information for reconstruction
-        if (!article.path("order").isMissingNode()) {
-            metadata.put("article_order", article.path("order").asInt());
-        }
-
-        return metadata;
-    }
 
     private void sendErrorResponse(StreamObserver<StoreResponse> responseObserver, String errorMessage) {
         StoreResponse response = StoreResponse.newBuilder()

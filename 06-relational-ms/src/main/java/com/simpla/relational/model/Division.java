@@ -28,6 +28,8 @@ public class Division {
     @JsonProperty("divisions")
     private List<Division> childDivisions = new ArrayList<>();
 
+    private Long parentDivisionId;
+
     public Division() {}
 
     public Division(Long id, String name, String ordinal, String title, String body, Integer orderIndex) {
@@ -116,5 +118,13 @@ public class Division {
             this.childDivisions = new ArrayList<>();
         }
         this.childDivisions.add(division);
+    }
+
+    public Long getParentDivisionId() {
+        return parentDivisionId;
+    }
+
+    public void setParentDivisionId(Long parentDivisionId) {
+        this.parentDivisionId = parentDivisionId;
     }
 }

@@ -116,6 +116,16 @@ def main():
                 )
 
                 logger.log_processing_start(infoleg_id=doc_id)
+                print(f"[{datetime.now()}] Received message for norma {doc_id}")
+
+                # Dump message_body to file for demo purposes
+                # try:
+                #     dump_path = f"message_dump_{doc_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                #     with open(dump_path, 'w', encoding='utf-8') as f:
+                #         json.dump(message_body, f, indent=2, ensure_ascii=False)
+                #     print(f"[{datetime.now()}] Dumped message to {dump_path}")
+                # except Exception as e:
+                #     print(f"[{datetime.now()}] Warning: Could not dump message to file: {e}")
 
                 # Transform data to legacy format for relational-ms
                 legacy_format_data = transform_to_legacy_format(message_body)
@@ -129,6 +139,7 @@ def main():
                 )
 
                 pipeline_result = grpc_clients.call_both_services_sequential(legacy_format_data, message_body)
+                pipeline_result = grpc_clients.call_both_services_sequential(legacy_format_data)
 
                 duration_ms = (time.time() - start_time) * 1000
 

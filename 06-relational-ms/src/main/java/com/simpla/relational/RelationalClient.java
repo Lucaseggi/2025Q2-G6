@@ -1,16 +1,17 @@
 package com.simpla.relational;
 
 import com.simpla.relational.proto.RelationalServiceGrpc;
-import com.simpla.relational.proto.StoreRequest;
-import com.simpla.relational.proto.StoreResponse;
-import com.simpla.relational.proto.ReconstructNormRequest;
-import com.simpla.relational.proto.ReconstructNormResponse;
+import com.simpla.relational.proto.GetBatchRequest;
+import com.simpla.relational.proto.GetBatchResponse;
+import com.simpla.relational.proto.EntityPair;
 import io.grpc.Channel;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 
 import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.ArrayList;
 
 public class RelationalClient {
     private final RelationalServiceGrpc.RelationalServiceBlockingStub blockingStub;
@@ -19,72 +20,49 @@ public class RelationalClient {
         blockingStub = RelationalServiceGrpc.newBlockingStub(channel);
     }
 
-    public void store(String data) {
-        System.out.println("Calling store() with data: " + data);
+    public void getBatch(List<EntityPair> entities) {
+        System.out.println("Calling getBatch() with " + entities.size() + " entities:");
+        for (EntityPair entity : entities) {
+            System.out.println("  - type: " + entity.getType() + ", id: " + entity.getId());
+        }
 
-        StoreRequest request = StoreRequest.newBuilder()
-                .setData(data)
+        GetBatchRequest request = GetBatchRequest.newBuilder()
+                .addAllEntities(entities)
                 .build();
 
-        StoreResponse response;
+        GetBatchResponse response;
         try {
-            response = blockingStub.store(request);
+            response = blockingStub.getBatch(request);
         } catch (StatusRuntimeException e) {
             System.err.println("RPC failed: " + e.getStatus());
             return;
         }
 
-        System.out.println("Response - Success: " + response.getSuccess() + ", Message: " + response.getMessage());
-    }
-
-    public void reconstructNorm(int infolegId) {
-        System.out.println("Calling reconstructNorm() with infoleg_id: " + infolegId);
-
-        ReconstructNormRequest request = ReconstructNormRequest.newBuilder()
-                .setInfolegId(infolegId)
-                .build();
-
-        ReconstructNormResponse response;
-        try {
-            response = blockingStub.reconstructNorm(request);
-        } catch (StatusRuntimeException e) {
-            System.err.println("RPC failed: " + e.getStatus());
-            return;
-        }
-
-        System.out.println("Response - Success: " + response.getSuccess());
+        System.out.println("\n=== GET BATCH RESPONSE ===");
+        System.out.println("Success: " + response.getSuccess());
         System.out.println("Message: " + response.getMessage());
 
-        if (response.getSuccess() && !response.getNormaJson().isEmpty()) {
-            System.out.println("Norma JSON length: " + response.getNormaJson().length());
-            // Optionally print first 500 chars of JSON for inspection
-            String json = response.getNormaJson();
-            if (json.length() > 500) {
-                System.out.println("JSON Preview: " + json.substring(0, 500) + "...");
+        if (response.getSuccess()) {
+            System.out.println("\nNormas JSON:");
+            String normasJson = response.getNormasJson();
+            if (normasJson.length() > 500) {
+                System.out.println(normasJson.substring(0, 500) + "...");
+                System.out.println("(Total length: " + normasJson.length() + " chars)");
             } else {
-                System.out.println("JSON Content: " + json);
+                System.out.println(normasJson);
             }
         }
+        System.out.println("=========================\n");
     }
 
     public static void main(String[] args) throws Exception {
         String target = "localhost:50051";
-        int infolegId = 183532; // Default from demo data
 
         if (args.length > 0) {
-            try {
-                infolegId = Integer.parseInt(args[0]);
-            } catch (NumberFormatException e) {
-                System.err.println("Invalid infoleg_id: " + args[0] + ". Using default: " + infolegId);
-            }
-        }
-
-        if (args.length > 1) {
-            target = args[1];
+            target = args[0];
         }
 
         System.out.println("Connecting to relational-ms at: " + target);
-        System.out.println("Testing ReconstructNorm with infoleg_id: " + infolegId);
 
         ManagedChannel channel = ManagedChannelBuilder.forTarget(target)
                 .usePlaintext()
@@ -93,8 +71,17 @@ public class RelationalClient {
         try {
             RelationalClient client = new RelationalClient(channel);
 
-            // Test the ReconstructNorm method
-            client.reconstructNorm(infolegId);
+            System.out.println("Testing GetBatch with article ID 4");
+
+            List<EntityPair> entities = new ArrayList<>();
+
+            // Add article with ID 4
+            entities.add(EntityPair.newBuilder()
+                    .setType("article")
+                    .setId(4)
+                    .build());
+
+            client.getBatch(entities);
 
         } finally {
             channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
