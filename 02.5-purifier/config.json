@@ -1,0 +1,39 @@
+{
+  "service": {
+    "name": "purifier-ms",
+    "version": "1.0.0",
+    "port": 8004,
+    "debug": false
+  },
+  "rabbitmq": {
+    "host": "rabbitmq",
+    "port": 5672,
+    "user": "admin",
+    "vhost": "/",
+    "queues": {
+      "input": "purifying",
+      "output": "processing"
+    }
+  },
+  "s3": {
+    "bucket_name": "simpla-purifier-storage",
+    "endpoint": "http://localstack:4566",
+    "region": "us-east-1"
+  },
+  "gemini": {
+    "models": [
+      "gemini-2.0-flash-lite",
+      "gemini-1.5-flash"
+    ],
+    "rate_limit": 60,
+    "max_input_tokens": 1048576,
+    "max_output_tokens": 8192,
+    "max_retries": 3,
+    "retry_delay": 1
+  },
+  "processing": {
+    "batch_size": 1,
+    "timeout_seconds": 120,
+    "stats_interval_minutes": 5
+  }
+}

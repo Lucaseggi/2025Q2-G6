@@ -33,3 +33,19 @@ class ScraperInterface(ABC):
             True if norm is cached, False otherwise
         """
         pass
+
+    @abstractmethod
+    def replay_norm(self, norm_id: int, force: bool = False) -> Tuple[bool, str]:
+        """
+        Replay a cached norm to the purifying queue
+
+        Args:
+            norm_id: ID of the norm to replay
+            force: Whether to force replay even if already in queue
+
+        Returns:
+            Tuple of (success: bool, source: str)
+            - success: True if replay succeeded
+            - source: "cache" or error description
+        """
+        pass

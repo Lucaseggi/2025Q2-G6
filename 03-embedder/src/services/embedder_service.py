@@ -1,6 +1,6 @@
 """Main embedding service implementation"""
 
-import logging
+import time
 from datetime import datetime
 from typing import Optional, Dict, List, Any
 
@@ -14,8 +14,9 @@ from interfaces.norm_embedder_service_interface import NormEmbedderServiceInterf
 # Add shared models to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../shared'))
 from models import ProcessedData, EmbedderMetadata
+from structured_logger import StructuredLogger, LogStage
 
-logger = logging.getLogger(__name__)
+logger = StructuredLogger("embedder", "service")
 
 
 class EmbedderService(EmbedderServiceInterface):
@@ -29,19 +30,27 @@ class EmbedderService(EmbedderServiceInterface):
             norm_embedder_service: The norm embedder service implementation
         """
         self.norm_embedder_service = norm_embedder_service
-        self.logger = logging.getLogger(__name__)
 
     def process_document(self, input_data: ProcessedData) -> Optional[ProcessedData]:
         """Process a document and add embeddings to its structured data"""
+        start_time = time.time()
+
         try:
             infoleg_response = input_data.scraping_data.infoleg_response
             norma_id = infoleg_response.infoleg_id
 
-            self.logger.info(f"Processing document {norma_id}")
+            logger.info(
+                "Starting embedding generation",
+                stage=LogStage.EMBEDDING,
+                infoleg_id=norma_id
+            )
 
             # Check if we have processing data
             if not input_data.processing_data:
-                self.logger.warning(f"No processing data found for document {norma_id}")
+                logger.warning(
+                    "No processing data found",
+                    infoleg_id=norma_id
+                )
                 return input_data
 
             # Look for structured data in parsings
@@ -58,7 +67,13 @@ class EmbedderService(EmbedderServiceInterface):
                 content_source = "original_text"
 
             if structured_data and structured_data.get('divisions'):
-                self.logger.info(f"Processing structured data from {content_source}")
+                logger.info(
+                    f"Processing structured data from {content_source}",
+                    stage=LogStage.EMBEDDING,
+                    infoleg_id=norma_id,
+                    content_source=content_source,
+                    num_divisions=len(structured_data['divisions'])
+                )
 
                 # Process structured data recursively to add embeddings
                 processed_divisions = self._add_embeddings_recursively(structured_data['divisions'])
@@ -72,7 +87,11 @@ class EmbedderService(EmbedderServiceInterface):
 
             else:
                 # Fallback to traditional embedding if no structured data available
-                self.logger.info(f"No structured data found, using traditional embedding")
+                logger.info(
+                    "No structured data found, using traditional embedding",
+                    stage=LogStage.EMBEDDING,
+                    infoleg_id=norma_id
+                )
                 self._add_traditional_embedding(input_data)
 
             # Create embedder metadata
@@ -85,11 +104,24 @@ class EmbedderService(EmbedderServiceInterface):
             # Add embedder metadata to processing data
             input_data.processing_data.embedder_metadata = embedder_metadata
 
-            self.logger.info(f"Successfully processed document {norma_id}")
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info(
+                "Embedding generation complete",
+                stage=LogStage.EMBEDDING,
+                infoleg_id=norma_id,
+                duration_ms=duration_ms,
+                model=self.norm_embedder_service.get_model_name()
+            )
+
             return input_data
 
         except Exception as e:
-            self.logger.error(f"Error processing document: {e}")
+            logger.error(
+                f"Error generating embeddings: {str(e)}",
+                stage=LogStage.EMBEDDING,
+                infoleg_id=norma_id if 'norma_id' in locals() else None,
+                error_type=type(e).__name__
+            )
             return None
 
     def _add_embeddings_recursively(self, divisions: List[Dict]) -> List[Dict]:

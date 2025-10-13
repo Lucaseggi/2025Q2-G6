@@ -1,7 +1,6 @@
 """Queue processor for embedding service"""
 
 import json
-import logging
 import time
 from datetime import datetime
 
@@ -11,12 +10,13 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../shared'))
 from rabbitmq_client import RabbitMQClient
 from models import ProcessedData
+from structured_logger import StructuredLogger, LogStage
 
 # Add src to path for services
 sys.path.append(os.path.join(os.path.dirname(__file__)))
 from interfaces.embedder_service_interface import EmbedderServiceInterface
 
-logger = logging.getLogger(__name__)
+logger = StructuredLogger("embedder", "worker")
 
 
 class QueueProcessor:
@@ -40,7 +40,7 @@ class QueueProcessor:
 
     def process_documents_from_queue(self):
         """Main processing loop - listen for documents and process them"""
-        logger.info("Queue processor started - listening for messages...")
+        logger.info("Queue processor started - listening for messages", stage=LogStage.STARTUP)
 
         while True:
             try:
@@ -49,20 +49,24 @@ class QueueProcessor:
 
                 if message_body:
                     self.stats['total_processed'] += 1
-                    logger.info("Received message for processing")
+                    start_time = time.time()
 
                     # Handle cache wrapper format
                     if 'cached_at' in message_body and 'data' in message_body:
-                        # Data comes from cache, unwrap it
                         actual_data = message_body['data']
-                        logger.debug(f"Processing cached data from {message_body.get('cached_at')}")
                     else:
-                        # Data is direct ProcessedData format
                         actual_data = message_body
 
                     # Parse the ProcessedData
                     input_data = ProcessedData.from_dict(actual_data)
                     norma_id = input_data.scraping_data.infoleg_response.infoleg_id
+
+                    logger.log_message_received(
+                        queue_name='embedding',
+                        infoleg_id=norma_id
+                    )
+
+                    logger.log_processing_start(infoleg_id=norma_id)
 
                     # Process the document
                     processed_data = self.embedder_service.process_document(input_data)
@@ -73,23 +77,41 @@ class QueueProcessor:
 
                         if success:
                             self.stats['successful'] += 1
-                            logger.info(f"Successfully processed and sent document {norma_id} to inserting queue")
+                            duration_ms = (time.time() - start_time) * 1000
+
+                            logger.log_message_sent(
+                                queue_name='inserting',
+                                infoleg_id=norma_id
+                            )
+
+                            logger.log_processing_complete(
+                                infoleg_id=norma_id,
+                                duration_ms=duration_ms
+                            )
                         else:
                             self.stats['queue_failures'] += 1
-                            logger.error(f"Failed to send document {norma_id} to inserting queue")
+                            logger.error(
+                                "Failed to send to inserting queue",
+                                stage=LogStage.QUEUE_ERROR,
+                                infoleg_id=norma_id
+                            )
                     else:
                         self.stats['failed'] += 1
-                        logger.error(f"Failed to process document {norma_id}")
+                        logger.log_processing_failed(
+                            infoleg_id=norma_id,
+                            error="Embedding generation failed"
+                        )
 
                     # Log statistics every 100 documents or 5 minutes
                     if self.stats['total_processed'] % 100 == 0 or self.stats['total_processed'] % 20 == 0:
                         self._log_statistics()
-                else:
-                    # No need to log timeout - it's normal behavior
-                    pass
 
             except Exception as e:
-                logger.error(f"Error in processing loop: {e}")
+                logger.error(
+                    f"Error in processing loop: {str(e)}",
+                    stage=LogStage.QUEUE_ERROR,
+                    error_type=type(e).__name__
+                )
                 time.sleep(5)
 
     def _log_statistics(self):
@@ -100,9 +122,10 @@ class QueueProcessor:
 
         success_rate = (self.stats['successful'] / total) * 100
 
-        logger.info("=== EMBEDDING PROCESSOR STATISTICS ===")
-        logger.info(f"Total processed: {total}")
-        logger.info(f"Successful: {self.stats['successful']} ({success_rate:.1f}%)")
-        logger.info(f"Failed: {self.stats['failed']}")
-        logger.info(f"Queue failures: {self.stats['queue_failures']}")
-        logger.info("=" * 40)
+        logger.log_statistics({
+            'total_processed': total,
+            'successful': self.stats['successful'],
+            'failed': self.stats['failed'],
+            'queue_failures': self.stats['queue_failures'],
+            'success_rate': success_rate
+        })

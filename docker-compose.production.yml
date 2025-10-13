@@ -1,0 +1,181 @@
+# Production Docker Compose Configuration
+# Optimized for large dataset processing with horizontal scaling
+#
+# Usage (Production with Scaling):
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml up --build
+#
+# Usage (Production with Scaling + Logging - RECOMMENDED):
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml -f docker-compose.logging.yml up --build
+#   Access Grafana logs at http://localhost:3000 (admin/admin)
+#
+# This configuration:
+# - Runs 2 purifier workers (HTML cleaning + LLM orthography fixes)
+# - Runs 4 processor workers (heavy LLM processing for structuring)
+# - Runs 2 embedder workers (embedding generation)
+# - Runs 2 inserter workers (database writes)
+# - Increases database memory for large datasets (~5GB)
+# - Sets resource limits to prevent OOM
+
+services:
+  # Scale purifier workers (2x for production)
+  purifier-worker:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # Scale processor workers (4x - bottleneck stage with heavy LLM usage)
+  processor-worker:
+    deploy:
+      replicas: 4
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Scale embedder workers (2x for embedding generation)
+  embedder-worker:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Scale inserter workers (2x for database writes)
+  inserter:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # Single API services (no scaling needed)
+  embedder-api:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  processor-api:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  purifier-api:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  scraper:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  api:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # Infrastructure services with increased capacity
+  opensearch:
+    environment:
+      # Increased memory for large datasets (~5GB expected)
+      - "OPENSEARCH_JAVA_OPTS=-Xms6g -Xmx6g"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 10G
+        reservations:
+          cpus: '2.0'
+          memory: 6G
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  rabbitmq:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  localstack:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  relational-ms:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  vectorial-ms:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Union
 import logging
 
-from ..models.requests import ScrapeRequest, ProcessRequest
-from ..models.responses import HealthResponse, ScrapeResponse, ProcessResponse, ErrorResponse
+from ..models.requests import ScrapeRequest, ProcessRequest, ReplayRequest
+from ..models.responses import HealthResponse, ScrapeResponse, ProcessResponse, ReplayResponse, ErrorResponse
 from ..interfaces.scraper_interface import ScraperInterface
 from ..dependencies import get_scraper_service
 
@@ -92,6 +92,40 @@ def process_norm(
         raise
     except Exception as e:
         logger.error(f"Error in process endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+
+@router.post("/replay", response_model=Union[ReplayResponse, ErrorResponse])
+def replay_norm(
+    request: ReplayRequest,
+    scraper_service: ScraperInterface = Depends(get_scraper_service)
+):
+    """Endpoint to replay a cached norm to the purifying queue"""
+    try:
+        logger.info(f"Received replay request for norm ID: {request.infoleg_id} (force={request.force})")
+
+        success, source = scraper_service.replay_norm(request.infoleg_id, force=request.force)
+
+        if success:
+            return ReplayResponse(
+                status='success',
+                message=f'Successfully replayed norm {request.infoleg_id} to purifying queue',
+                infoleg_id=request.infoleg_id,
+                cache_hit=True
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to replay norm {request.infoleg_id}: {source}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in replay endpoint: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"

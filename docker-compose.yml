@@ -47,6 +47,9 @@ services:
     container_name: opensearch-node
     env_file:
       - ./opensearch-db/.env
+    environment:
+      # Override memory settings for large datasets (~5GB expected)
+      - "OPENSEARCH_JAVA_OPTS=-Xms4g -Xmx4g"
     ulimits:
       memlock:
         soft: -1
@@ -71,6 +74,16 @@ services:
   postgres:
     build: ./postgres-db
     container_name: postgres-db
+    environment:
+      # Increase shared buffers and work memory for large datasets
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    command: >
+      postgres
+      -c shared_buffers=1GB
+      -c effective_cache_size=3GB
+      -c maintenance_work_mem=256MB
+      -c work_mem=64MB
+      -c max_connections=200
     ports:
       - "5432:5432"
     volumes:
@@ -102,23 +115,71 @@ services:
     networks:
       - rag-network
 
-  processor:
-    build: ./02-processor
-    container_name: processor
+  purifier-api:
+    build: ./02.5-purifier
+    container_name: purifier-api
+    ports:
+      - "8004:8004"
     env_file:
-      - ./02-processor/.env
+      - ./02.5-purifier/.env
     depends_on:
-      rabbitmq:
+      localstack:
         condition: service_healthy
-      opensearch:
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - rag-network
 
-  embedder:
+  purifier-worker:
+    build: ./02.5-purifier
+    command: ["python", "worker.py"]
+    env_file:
+      - ./02.5-purifier/.env
+    depends_on:
+      localstack:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  processor-api:
+    build: ./02-processor
+    container_name: processor-api
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8005"]
+    ports:
+      - "8005:8005"
+    env_file:
+      - ./02-processor/.env
+    depends_on:
+      localstack:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  processor-worker:
+    build: ./02-processor
+    command: ["python", "main.py"]
+    env_file:
+      - ./02-processor/.env
+    depends_on:
+      localstack:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  embedder-api:
     build: ./03-embedder
-    container_name: embedder
+    container_name: embedder-api
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8001"]
     ports:
       - "8001:8001"
     env_file:
@@ -132,9 +193,22 @@ services:
     networks:
       - rag-network
 
+  embedder-worker:
+    build: ./03-embedder
+    command: ["python", "worker.py"]
+    env_file:
+      - ./03-embedder/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+
   inserter:
     build: ./04-inserter
-    container_name: inserter
     env_file:
       - ./04-inserter/.env
     depends_on:
@@ -160,7 +234,7 @@ services:
     depends_on:
       opensearch:
         condition: service_healthy
-      embedder:
+      embedder-api:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -224,4 +298,5 @@ volumes:
 
 networks:
   rag-network:
+    name: simpla_data_extraction_rag-network
     driver: bridge

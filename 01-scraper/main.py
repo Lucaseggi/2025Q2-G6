@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '/app/shared')
+
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI

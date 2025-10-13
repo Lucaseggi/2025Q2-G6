@@ -6,7 +6,7 @@ Builds and exposes the raw database extracted through scraping from Infoleg (nor
 
 1. Download `norms_dump` from [Drive](https://drive.google.com/drive/folders/1NX9Za0Mv_XjeYyFhMv7WP5X1bkZsjoGR?usp=sharing)
 2. Place it in this directory
-3. Start the service: `docker-compose up -d`
+3. Start the service: `docker compose up -d`
 
 The Postgres database is:
 - Exposed on host port **5450**

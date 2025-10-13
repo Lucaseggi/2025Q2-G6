@@ -12,4 +12,7 @@ COPY . .
 RUN python -m grpc_tools.protoc -I./proto --python_out=. --grpc_python_out=. ./proto/relational.proto
 RUN python -m grpc_tools.protoc -I./proto --python_out=. --grpc_python_out=. ./proto/vectorial.proto
 
+# Create logs directory for structured logging
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
 CMD ["python", "-u", "main.py"]

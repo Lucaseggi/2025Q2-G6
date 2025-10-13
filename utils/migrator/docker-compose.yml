@@ -7,5 +7,5 @@ services:
 
 networks:
   rag-network:
-    external: true
     name: simpla_data_extraction_rag-network
+    external: true
