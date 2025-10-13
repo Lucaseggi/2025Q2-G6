@@ -116,7 +116,6 @@ def main():
                 )
 
                 logger.log_processing_start(infoleg_id=doc_id)
-                print(f"[{datetime.now()}] Received message for norma {doc_id}")
 
                 # Dump message_body to file for demo purposes
                 # try:
@@ -138,7 +137,6 @@ def main():
                     infoleg_id=doc_id
                 )
 
-                pipeline_result = grpc_clients.call_both_services_sequential(legacy_format_data, message_body)
                 pipeline_result = grpc_clients.call_both_services_sequential(legacy_format_data)
 
                 duration_ms = (time.time() - start_time) * 1000
