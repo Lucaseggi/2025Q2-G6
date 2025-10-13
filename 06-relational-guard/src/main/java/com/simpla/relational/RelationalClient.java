@@ -62,7 +62,7 @@ public class RelationalClient {
             target = args[0];
         }
 
-        System.out.println("Connecting to relational-ms at: " + target);
+        System.out.println("Connecting to relational-guard at: " + target);
 
         ManagedChannel channel = ManagedChannelBuilder.forTarget(target)
                 .usePlaintext()

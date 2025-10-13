@@ -96,7 +96,7 @@ public class VectorialClient {
     }
 
     public static void main(String[] args) throws Exception {
-        String target = "localhost:50052"; // Default vectorial-ms port
+        String target = "localhost:50052"; // Default vectorial-guard port
         if (args.length > 0) {
             target = args[0];
         }

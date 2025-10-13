@@ -81,7 +81,7 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
             System.out.println("Division PKs: " + insertionResult.getDivisionPks().size());
             System.out.println("Article PKs: " + insertionResult.getArticlePks().size());
 
-            // Convert insertion result to JSON for the vectorial-ms
+            // Convert insertion result to JSON for the vectorial-guard
             String pkMappingJson = objectMapper.writeValueAsString(insertionResult);
 
             String message = "Norma stored successfully with ID: " + insertionResult.getNormaId() + " (infoleg_id: " + norma.getInfolegId() + ")";

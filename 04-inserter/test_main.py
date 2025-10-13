@@ -3,14 +3,14 @@ import datetime
 from grpc_clients import GrpcServiceClients
 
 def transform_to_legacy_format(message_body):
-    """Transform new ProcessedData format to legacy format expected by relational-ms"""
+    """Transform new ProcessedData format to legacy format expected by relational-guard"""
     try:
         # Extract data from the new format
         scraping_data = message_body.get('scraping_data', {})
         infoleg_response = scraping_data.get('infoleg_response', {})
         processing_data = message_body.get('processing_data', {})
 
-        # Build norma object in the format expected by relational-ms
+        # Build norma object in the format expected by relational-guard
         norma = {
             # Basic infoleg fields
             'infoleg_id': infoleg_response.get('infoleg_id'),
@@ -54,7 +54,7 @@ def transform_to_legacy_format(message_body):
             if original_parsing and 'structured_data' in original_parsing:
                 norma['structured_texto_norma'] = original_parsing['structured_data']
 
-        # Return in the format expected by relational-ms
+        # Return in the format expected by relational-guard
         return {
             'data': {
                 'norma': norma

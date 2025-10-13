@@ -12,7 +12,7 @@ public class VectorialServer {
     private VectorialServiceImpl vectorialService;
 
     private void start() throws IOException {
-        int port = 50052; // Using different port from relational-ms (50051)
+        int port = 50052; // Using different port from relational-guard (50051)
         vectorialService = new VectorialServiceImpl();
 
         server = ServerBuilder.forPort(port)

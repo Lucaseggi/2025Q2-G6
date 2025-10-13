@@ -216,9 +216,9 @@ services:
         condition: service_healthy
       opensearch:
         condition: service_healthy
-      relational-ms:
+      relational-guard:
         condition: service_started
-      vectorial-ms:
+      vectorial-guard:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -240,13 +240,13 @@ services:
     networks:
       - rag-network
 
-  relational-ms:
-    build: ./06-relational-ms
-    container_name: relational-ms
+  relational-guard:
+    build: ./06-relational-guard
+    container_name: relational-guard
     ports:
       - "50051:50051"
     env_file:
-      - ./06-relational-ms/.env
+      - ./06-relational-guard/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -254,13 +254,13 @@ services:
     networks:
       - rag-network
 
-  vectorial-ms:
-    build: ./07-vectorial-ms
-    container_name: vectorial-ms
+  vectorial-guard:
+    build: ./07-vectorial-guard
+    container_name: vectorial-guard
     ports:
       - "50052:50052"
     env_file:
-      - ./07-vectorial-ms/.env
+      - ./07-vectorial-guard/.env
     depends_on:
       opensearch:
         condition: service_healthy

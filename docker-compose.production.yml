@@ -160,7 +160,7 @@ services:
           cpus: '0.25'
           memory: 512M
 
-  relational-ms:
+  relational-guard:
     deploy:
       resources:
         limits:
@@ -170,7 +170,7 @@ services:
           cpus: '0.25'
           memory: 512M
 
-  vectorial-ms:
+  vectorial-guard:
     deploy:
       resources:
         limits:

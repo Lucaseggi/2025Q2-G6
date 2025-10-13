@@ -29,12 +29,12 @@ def remove_embedding(obj):
 
 
 class GrpcServiceClients:
-    """Client wrapper for both relational-ms and vectorial-ms gRPC services"""
+    """Client wrapper for both relational-guard and vectorial-guard gRPC services"""
 
     def __init__(self):
-        self.relational_host = os.getenv('RELATIONAL_MS_HOST', 'relational-ms')
+        self.relational_host = os.getenv('RELATIONAL_MS_HOST', 'relational-guard')
         self.relational_port = os.getenv('RELATIONAL_MS_PORT', '50051')
-        self.vectorial_host = os.getenv('VECTORIAL_MS_HOST', 'vectorial-ms')
+        self.vectorial_host = os.getenv('VECTORIAL_MS_HOST', 'vectorial-guard')
         self.vectorial_port = os.getenv('VECTORIAL_MS_PORT', '50052')
 
         self.relational_address = f"{self.relational_host}:{self.relational_port}"
@@ -45,7 +45,7 @@ class GrpcServiceClients:
         print(f"[{datetime.now()}] - Vectorial MS: {self.vectorial_address}")
 
     def call_relational_store(self, data):
-        """Call the relational-ms store method"""
+        """Call the relational-guard store method"""
         try:
             # If data is a dict/object, convert to JSON and clean embeddings
             if isinstance(data, dict):
@@ -85,17 +85,17 @@ class GrpcServiceClients:
                 print(f"[{datetime.now()}] - Message: {response.message}")
 
                 return {
-                    'service': 'relational-ms',
+                    'service': 'relational-guard',
                     'success': response.success,
                     'message': response.message,
                     'pk_mapping_json': response.pk_mapping_json if hasattr(response, 'pk_mapping_json') else None
                 }
 
         except Exception as e:
-            error_msg = f"Failed to call relational-ms: {str(e)}"
+            error_msg = f"Failed to call relational-guard: {str(e)}"
             print(f"[{datetime.now()}] {error_msg}")
             return {
-                'service': 'relational-ms',
+                'service': 'relational-guard',
                 'success': False,
                 'message': error_msg
             }
@@ -252,7 +252,7 @@ class GrpcServiceClients:
 
 
     def call_vectorial_store(self, data, pk_mapping_json=None):
-        """Call the vectorial-ms store method with original data (preserving embeddings)"""
+        """Call the vectorial-guard store method with original data (preserving embeddings)"""
         try:
             # Enrich data with IDs from relational DB
             enriched_data = self.enrich_data_with_ids(data, pk_mapping_json)
@@ -260,7 +260,7 @@ class GrpcServiceClients:
             # remove_embedding(enriched_data)
             # print("ENRICHED DATA:", json.dumps(shorten(enriched_data), indent=2, ensure_ascii=False))
             # return {
-            #         'service': 'vectorial-ms',
+            #         'service': 'vectorial-guard',
             #         'success': "DUMMY_SUCCESS",
             #         'message': "DUMMY_RESPONSE"
             # }
@@ -283,22 +283,22 @@ class GrpcServiceClients:
                 print(f"[{datetime.now()}] - Message: {response.message}")
 
                 return {
-                    'service': 'vectorial-ms',
+                    'service': 'vectorial-guard',
                     'success': response.success,
                     'message': response.message
                 }
 
         except Exception as e:
-            error_msg = f"Failed to call vectorial-ms: {str(e)}"
+            error_msg = f"Failed to call vectorial-guard: {str(e)}"
             print(f"[{datetime.now()}] {error_msg}")
             return {
-                'service': 'vectorial-ms',
+                'service': 'vectorial-guard',
                 'success': False,
                 'message': error_msg
             }
 
     def call_both_services_sequential(self, data):
-        """Call relational-ms first, then vectorial-ms if successful (sequential pipeline)"""
+        """Call relational-guard first, then vectorial-guard if successful (sequential pipeline)"""
         print(f"[{datetime.now()}] Starting sequential pipeline...")
 
         # Call relational service first
@@ -319,7 +319,7 @@ class GrpcServiceClients:
             print(f"[{datetime.now()}] Relational storage failed, skipping vectorial storage")
             return {
                 'relational': relational_result,
-                'vectorial': {'service': 'vectorial-ms', 'success': False, 'message': 'Skipped due to relational failure'},
+                'vectorial': {'service': 'vectorial-guard', 'success': False, 'message': 'Skipped due to relational failure'},
                 'pipeline_success': False
             }
         

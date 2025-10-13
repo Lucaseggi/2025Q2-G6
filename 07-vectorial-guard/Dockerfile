@@ -19,10 +19,10 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 # Copy the fat jar from builder stage
-COPY --from=builder /app/target/vectorial-ms-1.0.0-jar-with-dependencies.jar ./vectorial-ms.jar
+COPY --from=builder /app/target/vectorial-guard-1.0.0-jar-with-dependencies.jar ./vectorial-guard.jar
 
 # Expose gRPC port
 EXPOSE 50052
 
 # Run the application
-CMD ["java", "-jar", "vectorial-ms.jar"]
+CMD ["java", "-jar", "vectorial-guard.jar"]

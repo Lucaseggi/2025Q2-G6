@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.simpla</groupId>
-    <artifactId>relational-ms</artifactId>
+    <artifactId>relational-guard</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 

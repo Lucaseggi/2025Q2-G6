@@ -19,10 +19,10 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 # Copy the fat jar from builder stage
-COPY --from=builder /app/target/relational-ms-1.0.0-jar-with-dependencies.jar ./relational-ms.jar
+COPY --from=builder /app/target/relational-guard-1.0.0-jar-with-dependencies.jar ./relational-guard.jar
 
 # Expose gRPC port
 EXPOSE 50051
 
 # Run the application
-CMD ["java", "-jar", "relational-ms.jar"]
+CMD ["java", "-jar", "relational-guard.jar"]
