@@ -38,7 +38,7 @@ terraform output frontend_website_url
 #### 1. Scrape a Document
 SSH into the scraper instance and trigger a scrape:
 ```bash
-ssh -F ~/.ssh/terraform_config scraper-ms
+ssh -F ~/.ssh/terraform_config scraper
 curl -X POST http://localhost:8003/scrape \
   -H "Content-Type: application/json" \
   -d '{"infoleg_id": 183532}'

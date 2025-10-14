@@ -1,4 +1,4 @@
-project_name = "proyecto-goblin"
+project_name = "simpla-cloud"
 
 tags = {
   Environment = "dev"
@@ -22,11 +22,14 @@ priv_sg_name = "priv-sg"
 vdb_sg_name = "vdb-sg"
 
 api_rest_name = "api-rest"
-scraper_ms_name = "scraper-ms"
-processor_ms_name = "processing-ms"
-embedder_ms_name = "embedding-ms"
-inserter_ms_name = "inserter-ms"
+scraper_name = "scraper"
+processor_name = "processor"
+embedder_name = "embedder"
+inserter_name = "inserter"
+relational_guard_name = "relational"
+vectorial_guard_name = "vectorial"
 queue_name = "queue"
 vdb_name = "vector-db"
+relational_db_name = "relational-db"
 
 default_instance_type = "t2.micro"

@@ -80,12 +80,15 @@ variable "priv_sg_name" {}
 variable "vdb_sg_name" {}
 
 variable "api_rest_name" {}
-variable "scraper_ms_name" {}
-variable "processor_ms_name" {}
-variable "embedder_ms_name" {}
-variable "inserter_ms_name" {}
+variable "scraper_name" {}
+variable "processor_name" {}
+variable "embedder_name" {}
+variable "inserter_name" {}
+variable "relational_guard_name" {}
+variable "vectorial_guard_name" {}
 variable "queue_name" {}
 variable "vdb_name" {}
+variable "relational_db_name" {}
 
 variable "default_instance_type" {}
 

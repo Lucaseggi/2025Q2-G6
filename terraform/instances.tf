@@ -30,20 +30,20 @@ resource "aws_instance" "api-rest" {
     Name = var.api_rest_name
   }
 
-  # Update frontend .env file with API IP and port
-  provisioner "local-exec" {
-    command = "echo VITE_API_URL=http://${self.public_ip}:8000 > ../05-frontend-app/.env"
-  }
+  # # Update frontend .env file with API IP and port
+  # provisioner "local-exec" {
+  #   command = "echo VITE_API_URL=http://${self.public_ip}:8000 > ../05-frontend-app/.env"
+  # }
 
-  # Update CORS settings in API with S3 bucket URL
-  provisioner "local-exec" {
-    command = "sed -i 's|http://proyecto-goblin-frontend-[^/]*\\.s3-website-[^/]*\\.amazonaws\\.com/|http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}/|g' ../api/simpla_api/settings.py"
-  }
+  # # Update CORS settings in API with S3 bucket URL
+  # provisioner "local-exec" {
+  #   command = "sed -i 's|http://simpla-cloud-frontend-[^/]*\\.s3-website-[^/]*\\.amazonaws\\.com/|http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}/|g' ../api/simpla_api/settings.py"
+  # }
 
   depends_on = [aws_s3_bucket_website_configuration.frontend]
 }
 
-resource "aws_instance" "scraper-ms" {
+resource "aws_instance" "scraper" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = var.default_instance_type
   subnet_id                   = aws_subnet.private1.id
@@ -52,11 +52,11 @@ resource "aws_instance" "scraper-ms" {
   key_name                    = aws_key_pair.master-key.key_name
 
   tags = {
-    Name = var.scraper_ms_name
+    Name = var.scraper_name
   }
 }
 
-resource "aws_instance" "processor-ms" {
+resource "aws_instance" "processor" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = var.default_instance_type
   subnet_id                   = aws_subnet.private1.id
@@ -65,11 +65,11 @@ resource "aws_instance" "processor-ms" {
   key_name                    = aws_key_pair.master-key.key_name
 
   tags = {
-    Name = var.processor_ms_name
+    Name = var.processor_name
   }
 }
 
-resource "aws_instance" "embedder-ms" {
+resource "aws_instance" "embedder" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = var.default_instance_type
   subnet_id                   = aws_subnet.private1.id
@@ -78,11 +78,11 @@ resource "aws_instance" "embedder-ms" {
   key_name                    = aws_key_pair.master-key.key_name
 
   tags = {
-    Name = var.embedder_ms_name
+    Name = var.embedder_name
   }
 }
 
-resource "aws_instance" "inserter-ms" {
+resource "aws_instance" "inserter" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = var.default_instance_type
   subnet_id                   = aws_subnet.private1.id
@@ -91,7 +91,33 @@ resource "aws_instance" "inserter-ms" {
   key_name                    = aws_key_pair.master-key.key_name
 
   tags = {
-    Name = var.inserter_ms_name
+    Name = var.inserter_name
+  }
+}
+
+resource "aws_instance" "relational-guard" {
+  ami                         = data.aws_ami.ecs.id
+  instance_type               = var.default_instance_type
+  subnet_id                   = aws_subnet.private1.id
+  security_groups             = [aws_security_group.private_sg.id]
+  associate_public_ip_address = false
+  key_name                    = aws_key_pair.master-key.key_name
+
+  tags = {
+    Name = var.relational_guard_name
+  }
+}
+
+resource "aws_instance" "vectorial-guard" {
+  ami                         = data.aws_ami.ecs.id
+  instance_type               = var.default_instance_type
+  subnet_id                   = aws_subnet.private1.id
+  security_groups             = [aws_security_group.private_sg.id]
+  associate_public_ip_address = false
+  key_name                    = aws_key_pair.master-key.key_name
+
+  tags = {
+    Name = var.vectorial_guard_name
   }
 }
 
@@ -118,5 +144,18 @@ resource "aws_instance" "vector-db" {
 
   tags = {
     Name = var.vdb_name
+  }
+}
+
+resource "aws_instance" "relational-db" {
+  ami                         = data.aws_ami.ecs.id
+  instance_type               = var.default_instance_type
+  subnet_id                   = aws_subnet.private2.id
+  security_groups             = [aws_security_group.private_sg.id]
+  associate_public_ip_address = false
+  key_name                    = aws_key_pair.master-key.key_name
+
+  tags = {
+    Name = var.relational_db_name
   }
 }

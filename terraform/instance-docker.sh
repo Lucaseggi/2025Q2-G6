@@ -6,16 +6,22 @@ SSH_CONFIG="$HOME/.ssh/terraform_config"
 # Get IPs from terraform outputs
 RABBITMQ_HOST=$(terraform output -raw queue_private_ip)
 OPENSEARCH_IP=$(terraform output -raw vector_db_private_ip)
-EMBEDDER_IP=$(terraform output -raw embedder_ms_private_ip)
+POSTGRES_HOST=$(terraform output -raw relational_db_private_ip)
+EMBEDDER_IP=$(terraform output -raw embedder_private_ip)
+RELATIONAL_GUARD_IP=$(terraform output -raw relational_guard_private_ip)
+VECTORIAL_GUARD_IP=$(terraform output -raw vectorial_guard_private_ip)
 
 ORDERED_INSTANCES=(
   "queue"
   "vector-db"
-  "embedder-ms"
-  "scraper-ms"
-  "processor-ms"
-  "inserter-ms"
-  "bastion"
+  "relational-db"
+  "embedder"
+  "scraper"
+  "processor"
+  "relational-guard"
+  "vectorial-guard"
+  "inserter"
+  # "bastion"
 )
 # Define docker build + run commands per host
 declare -A COMMANDS=(
@@ -47,8 +53,22 @@ declare -A COMMANDS=(
       opensearch-image
   "
 
+  # PostgreSQL (relational-db)
+  ["relational-db"]="
+    docker build -t postgres-image ./postgres-db &&
+    docker rm -f postgres-db || true &&
+    docker run -d \
+      --name postgres-db \
+      -e POSTGRES_DB=simpla_rag \
+      -e POSTGRES_USER=postgres \
+      -e POSTGRES_PASSWORD=postgres123 \
+      -p 5432:5432 \
+      -v postgres-data:/var/lib/postgresql/data/pgdata \
+      postgres-image
+  "
+
   # Embedder
-  ["embedder-ms"]="
+  ["embedder"]="
     docker build -t embedder-image ./03-embedder &&
     docker rm -f embedder || true &&
     docker run -d \
@@ -60,7 +80,7 @@ declare -A COMMANDS=(
   "
 
   # Scraper
-  ["scraper-ms"]="
+  ["scraper"]="
     docker build -t scraper-image ./01-scraper &&
     docker rm -f scraper || true &&
     docker run -d \
@@ -72,7 +92,7 @@ declare -A COMMANDS=(
   "
 
   # Processor
-  ["processor-ms"]="
+  ["processor"]="
     docker build -t processor-image ./02-processor &&
     docker rm -f processor || true &&
     docker run -d \
@@ -82,8 +102,36 @@ declare -A COMMANDS=(
       processor-image
   "
 
+  # Relational Guard
+  ["relational-guard"]="
+    docker build -t relational-guard-image ./06-relational-guard &&
+    docker rm -f relational-guard || true &&
+    docker run -d \
+      --name relational-guard \
+      --env-file ./06-relational-guard/.env \
+      -e POSTGRES_HOST=$POSTGRES_HOST \
+      -e POSTGRES_PORT=5432 \
+      -e POSTGRES_DB=simpla_rag \
+      -e POSTGRES_USER=postgres \
+      -e POSTGRES_PASSWORD=postgres123 \
+      -p 50051:50051 \
+      relational-guard-image
+  "
+
+  # Vectorial Guard
+  ["vectorial-guard"]="
+    docker build -t vectorial-guard-image ./07-vectorial-guard &&
+    docker rm -f vectorial-guard || true &&
+    docker run -d \
+      --name vectorial-guard \
+      --env-file ./07-vectorial-guard/.env \
+      -e OPENSEARCH_ENDPOINT=http://$OPENSEARCH_IP:9200 \
+      -p 50052:50052 \
+      vectorial-guard-image
+  "
+
   # Inserter
-  ["inserter-ms"]="
+  ["inserter"]="
     sleep 20
     docker build -t inserter-image ./04-inserter &&
     docker rm -f inserter || true &&
@@ -92,6 +140,8 @@ declare -A COMMANDS=(
       --env-file ./04-inserter/.env \
       -e RABBITMQ_HOST=$RABBITMQ_HOST \
       -e OPENSEARCH_ENDPOINT=http://$OPENSEARCH_IP:9200 \
+      -e RELATIONAL_GUARD_HOST=$RELATIONAL_GUARD_IP:50051 \
+      -e VECTORIAL_GUARD_HOST=$VECTORIAL_GUARD_IP:50052 \
       inserter-image
   "
 

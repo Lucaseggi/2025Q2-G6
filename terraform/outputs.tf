@@ -11,20 +11,28 @@ output "api_rest_private_ip" {
   value = aws_instance.api-rest.private_ip
 }
 
-output "scraper_ms_private_ip" {
-  value = aws_instance.scraper-ms.private_ip
+output "scraper_private_ip" {
+  value = aws_instance.scraper.private_ip
 }
 
-output "processor_ms_private_ip" {
-  value = aws_instance.processor-ms.private_ip
+output "processor_private_ip" {
+  value = aws_instance.processor.private_ip
 }
 
-output "embedder_ms_private_ip" {
-  value = aws_instance.embedder-ms.private_ip
+output "embedder_private_ip" {
+  value = aws_instance.embedder.private_ip
 }
 
-output "inserter_ms_private_ip" {
-  value = aws_instance.inserter-ms.private_ip
+output "inserter_private_ip" {
+  value = aws_instance.inserter.private_ip
+}
+
+output "relational_guard_private_ip" {
+  value = aws_instance.relational-guard.private_ip
+}
+
+output "vectorial_guard_private_ip" {
+  value = aws_instance.vectorial-guard.private_ip
 }
 
 output "queue_private_ip" {
@@ -33,6 +41,10 @@ output "queue_private_ip" {
 
 output "vector_db_private_ip" {
   value = aws_instance.vector-db.private_ip
+}
+
+output "relational_db_private_ip" {
+  value = aws_instance.relational-db.private_ip
 }
 
 # Frontend S3 bucket outputs

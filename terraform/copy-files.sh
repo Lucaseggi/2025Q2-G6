@@ -5,13 +5,16 @@ SSH_CONFIG="$HOME/.ssh/terraform_config"
 
 # Map of local folders to instance hostnames
 declare -A FOLDERS=(
-  ["bastion"]="../api"
+  # ["bastion"]="../api"
   ["vector-db"]="../opensearch-db"
+  ["relational-db"]="../postgres-db"
   ["queue"]="../00-rabbitmq"
-  ["scraper-ms"]="../01-scraper"
-  ["processor-ms"]="../02-processor"
-  ["embedder-ms"]="../03-embedder"
-  ["inserter-ms"]="../04-inserter"
+  ["scraper"]="../01-scraper"
+  ["processor"]="../02-processor"
+  ["embedder"]="../03-embedder"
+  ["inserter"]="../04-inserter"
+  ["relational-guard"]="../06-relational-guard"
+  ["vectorial-guard"]="../07-vectorial-guard"
 )
 
 # Loop through instances to copy folders
