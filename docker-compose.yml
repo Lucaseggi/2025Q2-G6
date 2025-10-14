@@ -43,10 +43,10 @@ services:
       - rag-network
 
   opensearch:
-    build: ./06-vectorial-db
+    build: ./07-vectorial-db
     container_name: opensearch-node
     env_file:
-      - ./06-vectorial-db/.env
+      - ./07-vectorial-db/.env
     environment:
       # Override memory settings for large datasets (~5GB expected)
       - "OPENSEARCH_JAVA_OPTS=-Xms4g -Xmx4g"
@@ -72,7 +72,7 @@ services:
       - rag-network
 
   postgres:
-    build: ./07-relational-db
+    build: ./06-relational-db
     container_name: postgres-db
     environment:
       # Increase shared buffers and work memory for large datasets

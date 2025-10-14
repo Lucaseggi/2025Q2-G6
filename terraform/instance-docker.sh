@@ -40,11 +40,11 @@ declare -A COMMANDS=(
   "
   # OpenSearch (vector-db)
   ["vector-db"]="
-    docker build -t opensearch-image ./06-vectorial-db &&
+    docker build -t opensearch-image ./07-vectorial-db &&
     docker rm -f opensearch-node || true &&
     docker run -d \
       --name opensearch-node \
-      --env-file ./06-vectorial-db/.env \
+      --env-file ./07-vectorial-db/.env \
       --ulimit memlock=-1:-1 \
       --ulimit nofile=65536:65536 \
       -p 9200:9200 \
@@ -55,7 +55,7 @@ declare -A COMMANDS=(
 
   # PostgreSQL (relational-db)
   ["relational-db"]="
-    docker build -t postgres-image ./07-relational-db &&
+    docker build -t postgres-image ./06-relational-db &&
     docker rm -f postgres-db || true &&
     docker run -d \
       --name postgres-db \

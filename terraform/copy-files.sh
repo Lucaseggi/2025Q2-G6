@@ -6,8 +6,8 @@ SSH_CONFIG="$HOME/.ssh/terraform_config"
 # Map of local folders to instance hostnames
 declare -A FOLDERS=(
   # ["bastion"]="../api"
-  ["vector-db"]="../06-vectorial-db"
-  ["relational-db"]="../07-relational-db"
+  ["vector-db"]="../07-vectorial-db"
+  ["relational-db"]="../06-relational-db"
   ["queue"]="../00-queue"
   ["scraper"]="../01-scraper"
   ["processor"]="../03-processor"
