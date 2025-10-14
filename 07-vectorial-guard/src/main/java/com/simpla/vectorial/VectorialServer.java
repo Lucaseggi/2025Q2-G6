@@ -2,7 +2,7 @@ package com.simpla.vectorial;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.protobuf.services.ProtoReflectionService;
+// import io.grpc.protobuf.services.ProtoReflectionService;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -17,7 +17,7 @@ public class VectorialServer {
 
         server = ServerBuilder.forPort(port)
                 .addService(vectorialService)
-                .addService(ProtoReflectionService.newInstance()) // Enable reflection for testing
+                // .addService(ProtoReflectionService.newInstance()) // Temporarily disabled due to protobuf 4.x compatibility
                 .build()
                 .start();
 

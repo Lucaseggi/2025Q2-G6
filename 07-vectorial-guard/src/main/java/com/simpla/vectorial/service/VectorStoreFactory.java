@@ -1,10 +1,12 @@
 package com.simpla.vectorial.service;
 
 import com.simpla.vectorial.service.impl.OpenSearchVectorStore;
+import com.simpla.vectorial.service.impl.PineconeVectorStore;
 
 public class VectorStoreFactory {
 
     private static final String OPENSEARCH_TYPE = "opensearch";
+    private static final String PINECONE_TYPE = "pinecone";
     private static final String DEFAULT_TYPE = OPENSEARCH_TYPE;
 
     /**
@@ -31,11 +33,14 @@ public class VectorStoreFactory {
             case OPENSEARCH_TYPE:
                 return new OpenSearchVectorStore();
 
+            case PINECONE_TYPE:
+                return new PineconeVectorStore();
+
             // Future implementations can be added here:
-            // case "pinecone":
-            //     return new PineconeVectorStore();
             // case "weaviate":
             //     return new WeaviateVectorStore();
+            // case "qdrant":
+            //     return new QdrantVectorStore();
 
             default:
                 System.out.println("Unknown vector store type: " + storeType + ". Falling back to OpenSearch.");
@@ -48,6 +53,6 @@ public class VectorStoreFactory {
      * @return array of supported types
      */
     public static String[] getSupportedTypes() {
-        return new String[]{OPENSEARCH_TYPE};
+        return new String[]{OPENSEARCH_TYPE, PINECONE_TYPE};
     }
 }

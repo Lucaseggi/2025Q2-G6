@@ -18,8 +18,8 @@ FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
-# Copy the fat jar from builder stage
-COPY --from=builder /app/target/vectorial-guard-1.0.0-jar-with-dependencies.jar ./vectorial-guard.jar
+# Copy the shaded jar from builder stage
+COPY --from=builder /app/target/vectorial-guard-1.0.0.jar ./vectorial-guard.jar
 
 # Expose gRPC port
 EXPOSE 50052

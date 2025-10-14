@@ -14,9 +14,9 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <grpc.version>1.58.0</grpc.version>
-        <protobuf.version>3.24.4</protobuf.version>
-        <protoc.version>3.24.4</protoc.version>
+        <grpc.version>1.62.2</grpc.version>
+        <protobuf.version>3.25.1</protobuf.version>
+        <protoc.version>3.25.1</protoc.version>
         <opensearch.version>2.10.0</opensearch.version>
     </properties>
 
@@ -67,6 +67,13 @@
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>4.5.14</version>
+        </dependency>
+
+        <!-- Pinecone Java Client - Using older stable version -->
+        <dependency>
+            <groupId>io.pinecone</groupId>
+            <artifactId>pinecone-client</artifactId>
+            <version>2.1.0</version>
         </dependency>
 
         <!-- JSON processing -->
@@ -133,28 +140,37 @@
                 </configuration>
             </plugin>
 
-            <!-- Maven assembly plugin for building fat jar -->
+            <!-- Maven shade plugin for building fat jar with proper service merging -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.6.0</version>
-                <configuration>
-                    <descriptorRefs>
-                        <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>
-                    <archive>
-                        <manifest>
-                            <mainClass>com.simpla.vectorial.VectorialServer</mainClass>
-                        </manifest>
-                    </archive>
-                </configuration>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
                 <executions>
                     <execution>
-                        <id>make-assembly</id>
                         <phase>package</phase>
                         <goals>
-                            <goal>single</goal>
+                            <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.simpla.vectorial.VectorialServer</mainClass>
+                                </transformer>
+                                <!-- Merge META-INF/services files -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

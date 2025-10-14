@@ -277,9 +277,9 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
 
         // Basic norm identification
         metadata.put("source", source);
-        metadata.put("source_id", sourceId);
+        metadata.put("source_id", String.valueOf(sourceId));
         metadata.put("document_type", documentType);
-        metadata.put("document_id", documentId);
+        metadata.put("document_id", String.valueOf(documentId));
 
         // Filters
         metadata.put("tipo_norma", tipoNorma);

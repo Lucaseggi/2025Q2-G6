@@ -889,8 +889,7 @@ public class VectorialClient {
             // Test search with filters
             System.out.println("\n=== Testing search with filters ===");
             Map<String, String> filters = Map.of(
-                "document_type", "division",
-                "infoleg_id", "183532"
+                "document_type", "division"
             );
             client.search(testEmbedding, filters, 1);
 
