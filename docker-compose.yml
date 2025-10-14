@@ -23,14 +23,14 @@ services:
 
   rabbitmq:
     build:
-      context: ./00-rabbitmq
+      context: ./00-queue
       dockerfile: Dockerfile
     container_name: rabbitmq-server
     ports:
       - "5672:5672"     # AMQP port
       - "15672:15672"   # Management UI
     env_file:
-      - ./00-rabbitmq/.env
+      - ./00-queue/.env
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
       - rabbitmq-logs:/var/log/rabbitmq
@@ -43,10 +43,10 @@ services:
       - rag-network
 
   opensearch:
-    build: ./opensearch-db
+    build: ./06-vectorial-db
     container_name: opensearch-node
     env_file:
-      - ./opensearch-db/.env
+      - ./06-vectorial-db/.env
     environment:
       # Override memory settings for large datasets (~5GB expected)
       - "OPENSEARCH_JAVA_OPTS=-Xms4g -Xmx4g"
@@ -72,7 +72,7 @@ services:
       - rag-network
 
   postgres:
-    build: ./postgres-db
+    build: ./07-relational-db
     container_name: postgres-db
     environment:
       # Increase shared buffers and work memory for large datasets
@@ -116,12 +116,12 @@ services:
       - rag-network
 
   purifier-api:
-    build: ./02.5-purifier
+    build: ./02-purifier
     container_name: purifier-api
     ports:
       - "8004:8004"
     env_file:
-      - ./02.5-purifier/.env
+      - ./02-purifier/.env
     depends_on:
       localstack:
         condition: service_healthy
@@ -132,10 +132,10 @@ services:
       - rag-network
 
   purifier-worker:
-    build: ./02.5-purifier
+    build: ./02-purifier
     command: ["python", "worker.py"]
     env_file:
-      - ./02.5-purifier/.env
+      - ./02-purifier/.env
     depends_on:
       localstack:
         condition: service_healthy
@@ -146,13 +146,13 @@ services:
       - rag-network
 
   processor-api:
-    build: ./02-processor
+    build: ./03-processor
     container_name: processor-api
     command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8005"]
     ports:
       - "8005:8005"
     env_file:
-      - ./02-processor/.env
+      - ./03-processor/.env
     depends_on:
       localstack:
         condition: service_healthy
@@ -163,10 +163,10 @@ services:
       - rag-network
 
   processor-worker:
-    build: ./02-processor
+    build: ./03-processor
     command: ["python", "main.py"]
     env_file:
-      - ./02-processor/.env
+      - ./03-processor/.env
     depends_on:
       localstack:
         condition: service_healthy
@@ -177,13 +177,13 @@ services:
       - rag-network
 
   embedder-api:
-    build: ./03-embedder
+    build: ./04-embedder
     container_name: embedder-api
     command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8001"]
     ports:
       - "8001:8001"
     env_file:
-      - ./03-embedder/.env
+      - ./04-embedder/.env
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -194,10 +194,10 @@ services:
       - rag-network
 
   embedder-worker:
-    build: ./03-embedder
+    build: ./04-embedder
     command: ["python", "worker.py"]
     env_file:
-      - ./03-embedder/.env
+      - ./04-embedder/.env
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -208,9 +208,9 @@ services:
       - rag-network
 
   inserter:
-    build: ./04-inserter
+    build: ./05-inserter
     env_file:
-      - ./04-inserter/.env
+      - ./05-inserter/.env
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -269,12 +269,12 @@ services:
       - rag-network
 
   # frontend:
-  #   build: ./05-frontend-app
+  #   build: ./frontend
   #   container_name: frontend
   #   ports:
   #     - "5173:5173"
   #   env_file:
-  #     - ./05-frontend-app/.env
+  #     - ./frontend/.env
   #   depends_on:
   #     api:
   #       condition: service_started

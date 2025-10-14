@@ -27,11 +27,11 @@ ORDERED_INSTANCES=(
 declare -A COMMANDS=(
   # Queue (RabbitMQ)
   ["queue"]="
-    docker build -t rabbitmq-image ./00-rabbitmq &&
+    docker build -t rabbitmq-image ./00-queue &&
     docker rm -f rabbitmq-server || true &&
     docker run -d \
       --name rabbitmq-server \
-      --env-file ./00-rabbitmq/.env \
+      --env-file ./00-queue/.env \
       -p 5672:5672 \
       -p 15672:15672 \
       -v rabbitmq-data:/var/lib/rabbitmq \
@@ -40,11 +40,11 @@ declare -A COMMANDS=(
   "
   # OpenSearch (vector-db)
   ["vector-db"]="
-    docker build -t opensearch-image ./opensearch-db &&
+    docker build -t opensearch-image ./06-vectorial-db &&
     docker rm -f opensearch-node || true &&
     docker run -d \
       --name opensearch-node \
-      --env-file ./opensearch-db/.env \
+      --env-file ./06-vectorial-db/.env \
       --ulimit memlock=-1:-1 \
       --ulimit nofile=65536:65536 \
       -p 9200:9200 \
@@ -55,7 +55,7 @@ declare -A COMMANDS=(
 
   # PostgreSQL (relational-db)
   ["relational-db"]="
-    docker build -t postgres-image ./postgres-db &&
+    docker build -t postgres-image ./07-relational-db &&
     docker rm -f postgres-db || true &&
     docker run -d \
       --name postgres-db \
@@ -69,11 +69,11 @@ declare -A COMMANDS=(
 
   # Embedder
   ["embedder"]="
-    docker build -t embedder-image ./03-embedder &&
+    docker build -t embedder-image ./04-embedder &&
     docker rm -f embedder || true &&
     docker run -d \
       --name embedder \
-      --env-file ./03-embedder/.env \
+      --env-file ./04-embedder/.env \
       -e RABBITMQ_HOST=$RABBITMQ_HOST \
       -p 8001:8001 \
       embedder-image
@@ -93,11 +93,11 @@ declare -A COMMANDS=(
 
   # Processor
   ["processor"]="
-    docker build -t processor-image ./02-processor &&
+    docker build -t processor-image ./03-processor &&
     docker rm -f processor || true &&
     docker run -d \
       --name processor \
-      --env-file ./02-processor/.env \
+      --env-file ./03-processor/.env \
       -e RABBITMQ_HOST=$RABBITMQ_HOST \
       processor-image
   "
@@ -133,11 +133,11 @@ declare -A COMMANDS=(
   # Inserter
   ["inserter"]="
     sleep 20
-    docker build -t inserter-image ./04-inserter &&
+    docker build -t inserter-image ./05-inserter &&
     docker rm -f inserter || true &&
     docker run -d \
       --name inserter \
-      --env-file ./04-inserter/.env \
+      --env-file ./05-inserter/.env \
       -e RABBITMQ_HOST=$RABBITMQ_HOST \
       -e OPENSEARCH_ENDPOINT=http://$OPENSEARCH_IP:9200 \
       -e RELATIONAL_GUARD_HOST=$RELATIONAL_GUARD_IP:50051 \

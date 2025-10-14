@@ -32,7 +32,7 @@ resource "aws_instance" "api-rest" {
 
   # # Update frontend .env file with API IP and port
   # provisioner "local-exec" {
-  #   command = "echo VITE_API_URL=http://${self.public_ip}:8000 > ../05-frontend-app/.env"
+  #   command = "echo VITE_API_URL=http://${self.public_ip}:8000 > ../frontend/.env"
   # }
 
   # # Update CORS settings in API with S3 bucket URL

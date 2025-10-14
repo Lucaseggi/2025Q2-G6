@@ -20,7 +20,7 @@ cd terraform
 terraform init
 chmod +x *.sh
 ./run.sh
-cd ../05-frontend-app
+cd ../frontend
 npm run build
 BUCKET_NAME=$(cd ../terraform && terraform output -raw frontend_bucket_name)
 aws s3 sync ./dist/ s3://$BUCKET_NAME --delete

@@ -83,13 +83,13 @@ terraform.tfstate*
 env-files
 terraform/terraform.exe
 
-02-processor/test
-02-processor/run_tests.sh 
-02-processor/test_summary_report.txt 
-02-processor/test_comparison.py 
-02-processor/test_diff_viewer.py 
-02-processor/test_requirements.txt 
-02-processor/test_runner.py 
-02-processor/test_summary_generator.py
+03-processor/test
+03-processor/run_tests.sh
+03-processor/test_summary_report.txt
+03-processor/test_comparison.py
+03-processor/test_diff_viewer.py
+03-processor/test_requirements.txt
+03-processor/test_runner.py
+03-processor/test_summary_generator.py
 
 utils/rebuilder/norms_dump
