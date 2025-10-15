@@ -90,6 +90,15 @@ public class Norma {
     @JsonProperty("structured_texto_norma_actualizado")
     private StructuredTexto structuredTextoNormaActualizado;
 
+    @JsonProperty("id_normas")
+    private List<NormaReferencia> idNormas;
+
+    @JsonProperty("lista_normas_que_complementa")
+    private List<Integer> listaNormasQueComplementa;
+
+    @JsonProperty("lista_normas_que_la_complementan")
+    private List<Integer> listaNormasQueLaComplementan;
+
     public Norma() {}
 
     // Getters and setters
@@ -307,6 +316,30 @@ public class Norma {
 
     public void setStructuredTextoNormaActualizado(StructuredTexto structuredTextoNormaActualizado) {
         this.structuredTextoNormaActualizado = structuredTextoNormaActualizado;
+    }
+
+    public List<NormaReferencia> getIdNormas() {
+        return idNormas;
+    }
+
+    public void setIdNormas(List<NormaReferencia> idNormas) {
+        this.idNormas = idNormas;
+    }
+
+    public List<Integer> getListaNormasQueComplementa() {
+        return listaNormasQueComplementa;
+    }
+
+    public void setListaNormasQueComplementa(List<Integer> listaNormasQueComplementa) {
+        this.listaNormasQueComplementa = listaNormasQueComplementa;
+    }
+
+    public List<Integer> getListaNormasQueLaComplementan() {
+        return listaNormasQueLaComplementan;
+    }
+
+    public void setListaNormasQueLaComplementan(List<Integer> listaNormasQueLaComplementan) {
+        this.listaNormasQueLaComplementan = listaNormasQueLaComplementan;
     }
 
     // Inner class for structured texto

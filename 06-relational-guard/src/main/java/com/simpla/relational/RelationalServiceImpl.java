@@ -11,6 +11,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import io.grpc.stub.StreamObserver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -54,7 +55,12 @@ public class RelationalServiceImpl extends RelationalServiceGrpc.RelationalServi
 
     private ObjectMapper initializeObjectMapper() {
         ObjectMapper mapper = new ObjectMapper();
+        // Register JavaTimeModule FIRST before any configuration
         mapper.registerModule(new JavaTimeModule());
+
+        // Serialize dates as ISO strings instead of arrays
+        mapper.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+
         mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         return mapper;
     }

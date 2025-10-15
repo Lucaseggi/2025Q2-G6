@@ -8,7 +8,6 @@ CREATE TABLE normas_structured (
     clase_norma                      VARCHAR(255),
     tipo_norma                       VARCHAR(255),
     sancion                          DATE,
-    id_normas                        JSONB,
     publicacion                      DATE,
     titulo_sumario                   TEXT,
     titulo_resumido                  TEXT,
@@ -19,8 +18,6 @@ CREATE TABLE normas_structured (
     texto_norma                      TEXT,
     texto_norma_actualizado          TEXT,
     estado                           VARCHAR(255),
-    lista_normas_que_complementa     JSONB,
-    lista_normas_que_la_complementan JSONB,
 
     -- Processed text fields
     purified_texto_norma             TEXT,
@@ -69,6 +66,26 @@ CREATE TABLE articles (
     created_at        TIMESTAMP DEFAULT NOW()
 );
 
+-- Normas referencias table (alternate identifiers for normas)
+CREATE TABLE normas_referencias (
+    id           SERIAL PRIMARY KEY,
+    norma_id     INTEGER NOT NULL REFERENCES normas_structured(id) ON DELETE CASCADE,
+    numero       INTEGER NOT NULL, -- -1 for unparseable values
+    dependencia  TEXT,
+    rama_digesto VARCHAR(255),
+    created_at   TIMESTAMP DEFAULT NOW()
+);
+
+-- Normas relaciones table (complement relationships between normas)
+CREATE TABLE normas_relaciones (
+    id                       SERIAL PRIMARY KEY,
+    norma_origen_infoleg_id  INTEGER NOT NULL,
+    norma_destino_infoleg_id INTEGER NOT NULL,
+    tipo_relacion            VARCHAR(50) NOT NULL, -- 'complementa' or 'complementada_por'
+    created_at               TIMESTAMP DEFAULT NOW(),
+    UNIQUE(norma_origen_infoleg_id, norma_destino_infoleg_id, tipo_relacion)
+);
+
 -- Create indexes for performance
 CREATE INDEX idx_normas_infoleg ON normas_structured(infoleg_id);
 CREATE INDEX idx_normas_inserted_at ON normas_structured(inserted_at);
@@ -78,6 +95,10 @@ CREATE INDEX idx_divisions_order ON divisions(norma_id, order_index);
 CREATE INDEX idx_articles_division ON articles(division_id);
 CREATE INDEX idx_articles_parent ON articles(parent_article_id);
 CREATE INDEX idx_articles_order ON articles(division_id, order_index);
+CREATE INDEX idx_normas_referencias_norma_id ON normas_referencias(norma_id);
+CREATE INDEX idx_normas_referencias_numero ON normas_referencias(numero);
+CREATE INDEX idx_normas_relaciones_origen ON normas_relaciones(norma_origen_infoleg_id);
+CREATE INDEX idx_normas_relaciones_destino ON normas_relaciones(norma_destino_infoleg_id);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()

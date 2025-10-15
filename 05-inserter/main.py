@@ -15,6 +15,37 @@ from grpc_clients import GrpcServiceClients
 
 logger = StructuredLogger("inserter", "worker")
 
+def parse_numero_to_int(numero_str):
+    """Parse numero field to integer, return -1 if unparseable"""
+    if numero_str is None or numero_str == '':
+        return -1
+
+    try:
+        # Remove any whitespace
+        numero_str = str(numero_str).strip()
+        # Try to parse as integer
+        return int(numero_str)
+    except (ValueError, TypeError):
+        # If parsing fails, return -1
+        return -1
+
+def transform_id_normas(id_normas_list):
+    """Transform id_normas list to have integer numero fields"""
+    if not id_normas_list:
+        return []
+
+    transformed = []
+    for item in id_normas_list:
+        if isinstance(item, dict):
+            transformed_item = item.copy()
+            # Parse the numero field to integer
+            transformed_item['numero'] = parse_numero_to_int(item.get('numero'))
+            transformed.append(transformed_item)
+        else:
+            transformed.append(item)
+
+    return transformed
+
 def transform_to_legacy_format(message_body):
     """Transform new ProcessedData format to legacy format expected by relational-guard"""
     try:
@@ -41,6 +72,10 @@ def transform_to_legacy_format(message_body):
             'texto_norma': infoleg_response.get('texto_norma'),
             'texto_norma_actualizado': infoleg_response.get('texto_norma_actualizado'),
             'estado': infoleg_response.get('estado'),
+            # Referencias and relaciones (with numero parsing)
+            'id_normas': transform_id_normas(infoleg_response.get('id_normas', [])),
+            'lista_normas_que_complementa': infoleg_response.get('lista_normas_que_complementa', []),
+            'lista_normas_que_la_complementan': infoleg_response.get('lista_normas_que_la_complementan', []),
         }
 
         # Add processing data if available

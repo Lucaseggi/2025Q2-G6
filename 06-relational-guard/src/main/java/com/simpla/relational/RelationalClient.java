@@ -3,6 +3,9 @@ package com.simpla.relational;
 import com.simpla.relational.proto.RelationalServiceGrpc;
 import com.simpla.relational.proto.GetBatchRequest;
 import com.simpla.relational.proto.GetBatchResponse;
+import com.simpla.relational.proto.ReconstructNormRequest;
+import com.simpla.relational.proto.ReconstructNormByIdRequest;
+import com.simpla.relational.proto.ReconstructNormResponse;
 import com.simpla.relational.proto.EntityPair;
 import io.grpc.Channel;
 import io.grpc.ManagedChannel;
@@ -18,6 +21,70 @@ public class RelationalClient {
 
     public RelationalClient(Channel channel) {
         blockingStub = RelationalServiceGrpc.newBlockingStub(channel);
+    }
+
+    public void reconstructNorm(int infolegId) {
+        System.out.println("Calling reconstructNorm() with infoleg_id: " + infolegId);
+
+        ReconstructNormRequest request = ReconstructNormRequest.newBuilder()
+                .setInfolegId(infolegId)
+                .build();
+
+        ReconstructNormResponse response;
+        try {
+            response = blockingStub.reconstructNorm(request);
+        } catch (StatusRuntimeException e) {
+            System.err.println("RPC failed: " + e.getStatus());
+            return;
+        }
+
+        System.out.println("\n=== RECONSTRUCT NORM RESPONSE ===");
+        System.out.println("Success: " + response.getSuccess());
+        System.out.println("Message: " + response.getMessage());
+
+        if (response.getSuccess()) {
+            System.out.println("\nNorma JSON:");
+            String normaJson = response.getNormaJson();
+            if (normaJson.length() > 500) {
+                System.out.println(normaJson);
+                System.out.println("(Total length: " + normaJson.length() + " chars)");
+            } else {
+                System.out.println(normaJson);
+            }
+        }
+        System.out.println("==================================\n");
+    }
+
+    public void reconstructNormById(long id) {
+        System.out.println("Calling reconstructNormById() with id: " + id);
+
+        ReconstructNormByIdRequest request = ReconstructNormByIdRequest.newBuilder()
+                .setId(id)
+                .build();
+
+        ReconstructNormResponse response;
+        try {
+            response = blockingStub.reconstructNormById(request);
+        } catch (StatusRuntimeException e) {
+            System.err.println("RPC failed: " + e.getStatus());
+            return;
+        }
+
+        System.out.println("\n=== RECONSTRUCT NORM BY ID RESPONSE ===");
+        System.out.println("Success: " + response.getSuccess());
+        System.out.println("Message: " + response.getMessage());
+
+        if (response.getSuccess()) {
+            System.out.println("\nNorma JSON:");
+            String normaJson = response.getNormaJson();
+            if (normaJson.length() > 500) {
+                System.out.println(normaJson.substring(0, 500) + "...");
+                System.out.println("(Total length: " + normaJson.length() + " chars)");
+            } else {
+                System.out.println(normaJson);
+            }
+        }
+        System.out.println("========================================\n");
     }
 
     public void getBatch(List<EntityPair> entities) {
@@ -46,7 +113,7 @@ public class RelationalClient {
             System.out.println("\nNormas JSON:");
             String normasJson = response.getNormasJson();
             if (normasJson.length() > 500) {
-                System.out.println(normasJson.substring(0, 500) + "...");
+                System.out.println(normasJson);
                 System.out.println("(Total length: " + normasJson.length() + " chars)");
             } else {
                 System.out.println(normasJson);
@@ -71,17 +138,22 @@ public class RelationalClient {
         try {
             RelationalClient client = new RelationalClient(channel);
 
-            System.out.println("Testing GetBatch with article ID 4");
+            // Test 1: ReconstructNorm by infoleg_id
+            System.out.println("=== Test 1: ReconstructNorm by infoleg_id ===");
+            client.reconstructNorm(183532);
 
+            // Test 2: ReconstructNormById
+            System.out.println("\n=== Test 2: ReconstructNorm by database ID ===");
+//            client.reconstructNormById(1);
+
+            // Test 3: GetBatch with article
+            System.out.println("\n=== Test 3: GetBatch with article ID 4 ===");
             List<EntityPair> entities = new ArrayList<>();
-
-            // Add article with ID 4
             entities.add(EntityPair.newBuilder()
                     .setType("article")
                     .setId(4)
                     .build());
-
-            client.getBatch(entities);
+//            client.getBatch(entities);
 
         } finally {
             channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);

@@ -189,6 +189,11 @@ public class NormaRepository {
             structuredTexto.setDivisions(rootDivisions);
             norma.setStructuredTextoNorma(structuredTexto);
         }
+
+        // Load referencias and relaciones
+        norma.setIdNormas(loadReferenciasForNorma(normaId));
+        norma.setListaNormasQueComplementa(loadNormasQueComplementa(norma.getInfolegId()));
+        norma.setListaNormasQueLaComplementan(loadNormasQueLaComplementan(norma.getInfolegId()));
     }
 
     private List<Division> loadDivisionsForNorma(Long normaId) throws SQLException {
@@ -437,6 +442,130 @@ public class NormaRepository {
         }
     }
 
+    public Long insertNormaReferencia(Long normaId, NormaReferencia referencia) throws SQLException {
+        String sql = """
+            INSERT INTO normas_referencias (norma_id, numero, dependencia, rama_digesto)
+            VALUES (?, ?, ?, ?)
+            RETURNING id
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, normaId);
+            stmt.setInt(2, referencia.getNumero());
+            stmt.setString(3, referencia.getDependencia());
+            stmt.setString(4, referencia.getRamaDigesto());
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    Long referenciaId = rs.getLong(1);
+                    referencia.setId(referenciaId);
+                    return referenciaId;
+                }
+                throw new SQLException("Failed to get generated ID for norma referencia");
+            }
+        }
+    }
+
+    public void insertNormaRelacion(Integer origenInfolegId, Integer destinoInfolegId, String tipoRelacion) throws SQLException {
+        String sql = """
+            INSERT INTO normas_relaciones (norma_origen_infoleg_id, norma_destino_infoleg_id, tipo_relacion)
+            VALUES (?, ?, ?)
+            ON CONFLICT (norma_origen_infoleg_id, norma_destino_infoleg_id, tipo_relacion) DO NOTHING
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, origenInfolegId);
+            stmt.setInt(2, destinoInfolegId);
+            stmt.setString(3, tipoRelacion);
+
+            stmt.executeUpdate();
+        }
+    }
+
+    private List<NormaReferencia> loadReferenciasForNorma(Long normaId) throws SQLException {
+        String sql = """
+            SELECT id, norma_id, numero, dependencia, rama_digesto
+            FROM normas_referencias
+            WHERE norma_id = ?
+            """;
+
+        List<NormaReferencia> referencias = new ArrayList<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, normaId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    NormaReferencia referencia = new NormaReferencia();
+                    referencia.setId(rs.getLong("id"));
+                    referencia.setNormaId(rs.getLong("norma_id"));
+                    referencia.setNumero(rs.getInt("numero"));
+                    referencia.setDependencia(rs.getString("dependencia"));
+                    referencia.setRamaDigesto(rs.getString("rama_digesto"));
+                    referencias.add(referencia);
+                }
+            }
+        }
+
+        return referencias;
+    }
+
+    private List<Integer> loadNormasQueComplementa(Integer infolegId) throws SQLException {
+        // This norma complements these others (this is origen, others are destino)
+        String sql = """
+            SELECT norma_destino_infoleg_id
+            FROM normas_relaciones
+            WHERE norma_origen_infoleg_id = ? AND tipo_relacion = 'complementa'
+            """;
+
+        List<Integer> relaciones = new ArrayList<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, infolegId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    relaciones.add(rs.getInt("norma_destino_infoleg_id"));
+                }
+            }
+        }
+
+        return relaciones;
+    }
+
+    private List<Integer> loadNormasQueLaComplementan(Integer infolegId) throws SQLException {
+        // These normas complement this one (others are origen, this is destino)
+        String sql = """
+            SELECT norma_origen_infoleg_id
+            FROM normas_relaciones
+            WHERE norma_destino_infoleg_id = ? AND tipo_relacion = 'complementa'
+            """;
+
+        List<Integer> relaciones = new ArrayList<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, infolegId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    relaciones.add(rs.getInt("norma_origen_infoleg_id"));
+                }
+            }
+        }
+
+        return relaciones;
+    }
+
     public InsertionResult insertCompleteNormaWithPks(Norma norma) throws SQLException {
         InsertionResult result = new InsertionResult();
 
@@ -451,6 +580,26 @@ public class NormaRepository {
             insertDivisionsWithPks(normaId, norma.getStructuredTextoNorma().getDivisions(), result);
         }
 
+        // Insert norma referencias (id_normas)
+        if (norma.getIdNormas() != null && !norma.getIdNormas().isEmpty()) {
+            for (NormaReferencia referencia : norma.getIdNormas()) {
+                insertNormaReferencia(normaId, referencia);
+            }
+        }
+
+        // Insert norma relaciones (lista_normas_que_complementa)
+        if (norma.getListaNormasQueComplementa() != null && !norma.getListaNormasQueComplementa().isEmpty()) {
+            for (Integer destinoInfolegId : norma.getListaNormasQueComplementa()) {
+                insertNormaRelacion(norma.getInfolegId(), destinoInfolegId, "complementa");
+            }
+        }
+
+        // Insert norma relaciones (lista_normas_que_la_complementan)
+        if (norma.getListaNormasQueLaComplementan() != null && !norma.getListaNormasQueLaComplementan().isEmpty()) {
+            for (Integer origenInfolegId : norma.getListaNormasQueLaComplementan()) {
+                insertNormaRelacion(origenInfolegId, norma.getInfolegId(), "complementa");
+            }
+        }
 
         return result;
     }
