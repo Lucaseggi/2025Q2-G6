@@ -46,7 +46,7 @@ def transform_id_normas(id_normas_list):
 
     return transformed
 
-def transform_to_legacy_format(message_body):
+def transform_to_norma_format(message_body):
     """Transform new ProcessedData format to legacy format expected by relational-guard"""
     try:
         # Extract data from the new format
@@ -172,7 +172,7 @@ def main():
                 #     print(f"[{datetime.now()}] Warning: Could not dump message to file: {e}")
 
                 # Transform data to legacy format for relational-guard
-                legacy_format_data = transform_to_legacy_format(message_body)
+                legacy_format_data = transform_to_norma_format(message_body)
 
                 # Call sequential pipeline: relational-guard → vectorial-guard
                 # Note: relational-guard gets legacy format, vectorial-guard gets original format with embeddings
