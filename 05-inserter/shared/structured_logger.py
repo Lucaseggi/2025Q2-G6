@@ -30,6 +30,7 @@ class LogStage(str, Enum):
     QUEUE_ERROR = "queue_error"
 
     # Processing stages
+    PROCESSING = "processing"
     PROCESSING_START = "processing_start"
     PROCESSING_COMPLETE = "processing_complete"
     PROCESSING_FAILED = "processing_failed"

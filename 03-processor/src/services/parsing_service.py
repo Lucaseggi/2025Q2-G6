@@ -72,6 +72,7 @@ class ParsingService(ParsingServiceInterface):
             purifications = input_data.processing_data.purifications
             purified_original = purifications.get("original_text", "")
             purified_updated = purifications.get("updated_text", "")
+            purified_summarized = purifications.get("summarized_text", "")
 
             # Determine primary text to process
             primary_field = None
@@ -84,14 +85,65 @@ class ParsingService(ParsingServiceInterface):
                 primary_field = "original_text"
                 primary_purified_text = purified_original
 
+            # Check for summary-only case (both main texts are empty/invalid but summarized exists)
+            is_summary_only = (not primary_purified_text and
+                              purified_summarized and
+                              self.text_processor.is_valid_text(purified_summarized))
+
             # Check if we have any content to process
-            if not primary_purified_text:
+            if not primary_purified_text and not is_summary_only:
                 logger.log_processing_failed(
                     infoleg_id=infoleg_response.infoleg_id,
                     error="No valid purified text"
                 )
                 self.stats['failed_purification'] += 1
                 return None
+
+            # Handle summary-only case with passthrough (skip LLM processing)
+            if is_summary_only:
+                logger.info(
+                    "Summary-only case detected, passing through without LLM structuring",
+                    stage=LogStage.PROCESSING,
+                    infoleg_id=infoleg_response.infoleg_id
+                )
+
+                # Create empty parsings - embedder will handle the summarized text directly
+                input_data.processing_data.parsings = {}
+
+                # Update processor metadata to indicate passthrough
+                input_data.processing_data.processor_metadata.model_used = "passthrough"
+                input_data.processing_data.processor_metadata.tokens_used = 0
+                input_data.processing_data.processor_metadata.processing_timestamp = datetime.now().isoformat()
+
+                # Store to S3
+                storage_key = f"processed_norms/{infoleg_response.infoleg_id}.json"
+                try:
+                    logger.info(
+                        "Storing passthrough norm to S3",
+                        stage=LogStage.STORAGE_WRITE,
+                        infoleg_id=infoleg_response.infoleg_id
+                    )
+                    stored = self.storage_service.store(storage_key, input_data.to_dict())
+                    if stored:
+                        self.stats['stored_to_s3'] += 1
+                except Exception as storage_error:
+                    logger.error(
+                        f"Error storing to S3: {storage_error}",
+                        stage=LogStage.STORAGE_ERROR,
+                        infoleg_id=infoleg_response.infoleg_id
+                    )
+
+                self.stats['successful'] += 1
+
+                duration_ms = (time.time() - start_time) * 1000
+                logger.log_processing_complete(
+                    infoleg_id=infoleg_response.infoleg_id,
+                    duration_ms=duration_ms,
+                    model_used="passthrough",
+                    tokens_used=0
+                )
+
+                return input_data
 
             # Step 2: LLM processing for structuring
             logger.info(
@@ -218,6 +270,16 @@ class ParsingService(ParsingServiceInterface):
             return input_data
 
         except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+            logger.error(
+                f"Exception in process_document: {str(e)}",
+                stage=LogStage.PROCESSING,
+                infoleg_id=infoleg_response.infoleg_id if 'infoleg_response' in locals() else None,
+                error_type=type(e).__name__,
+                error_message=str(e),
+                traceback=error_traceback[:500]  # Truncate traceback for readability
+            )
             logger.log_processing_failed(
                 infoleg_id=infoleg_response.infoleg_id if 'infoleg_response' in locals() else None,
                 error=str(e),

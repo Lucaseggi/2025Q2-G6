@@ -119,10 +119,11 @@ class TextProcessingService:
 
         return text
 
-    def purify_norm_text(self, texto_norma: Optional[str], texto_norma_actualizado: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
-        """Purify both text fields of a norm"""
+    def purify_norm_text(self, texto_norma: Optional[str], texto_norma_actualizado: Optional[str], texto_resumido: Optional[str] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """Purify all text fields of a norm including the summarized text"""
         purified_texto_norma = None
         purified_texto_actualizado = None
+        purified_texto_resumido = None
 
         if texto_norma:
             purified_texto_norma = self.convert_html_to_structured_text(texto_norma)
@@ -130,7 +131,11 @@ class TextProcessingService:
         if texto_norma_actualizado:
             purified_texto_actualizado = self.convert_html_to_structured_text(texto_norma_actualizado)
 
-        return purified_texto_norma, purified_texto_actualizado
+        # Always purify texto_resumido if it exists, running the full pipeline
+        if texto_resumido:
+            purified_texto_resumido = self.convert_html_to_structured_text(texto_resumido)
+
+        return purified_texto_norma, purified_texto_actualizado, purified_texto_resumido
 
     def purify_text(self, text: str) -> Optional[str]:
         """Clean and purify raw text content"""

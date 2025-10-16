@@ -67,9 +67,21 @@ class PurifierService(PurifierInterface):
 
             texto_norma = input_data.scraping_data.infoleg_response.texto_norma
             texto_actualizado = input_data.scraping_data.infoleg_response.texto_norma_actualizado
+            texto_resumido = input_data.scraping_data.infoleg_response.texto_resumido
+            titulo_resumido = input_data.scraping_data.infoleg_response.titulo_resumido
 
-            purified_original, purified_updated = self.text_processor.purify_norm_text(
-                texto_norma, texto_actualizado
+            # Use titulo_resumido as fallback if texto_resumido is empty/null
+            if not texto_resumido or not texto_resumido.strip():
+                if titulo_resumido and titulo_resumido.strip():
+                    logger.info(
+                        "texto_resumido is empty, using titulo_resumido as fallback",
+                        stage=LogStage.PURIFICATION,
+                        infoleg_id=infoleg_id
+                    )
+                    texto_resumido = titulo_resumido
+
+            purified_original, purified_updated, purified_summarized = self.text_processor.purify_norm_text(
+                texto_norma, texto_actualizado, texto_resumido
             )
 
             # Determine primary text to fix
@@ -83,12 +95,81 @@ class PurifierService(PurifierInterface):
                 primary_text = purified_original
                 primary_field = "original_text"
 
-            if not primary_text:
+            # Check if this is a summary-only case
+            has_summarized_text = purified_summarized and self.text_processor.is_valid_text(purified_summarized)
+
+            # Only fail if we have no valid text at all (including summarized)
+            if not primary_text and not has_summarized_text:
                 logger.log_processing_failed(
                     infoleg_id=infoleg_id,
                     error="No valid text after purification"
                 )
                 return False, "no_valid_text"
+
+            # If we only have summarized text, skip LLM processing
+            if not primary_text and has_summarized_text:
+                logger.info(
+                    "Summary-only case detected in purifier, skipping LLM orthography fix",
+                    stage=LogStage.PURIFICATION,
+                    infoleg_id=infoleg_id
+                )
+
+                # Create processing data without LLM processing
+                processor_metadata = ProcessorMetadata(
+                    model_used="none",
+                    tokens_used=0,
+                    processing_timestamp=datetime.now().isoformat()
+                )
+
+                processing_data = ProcessingData(
+                    purifications={
+                        "original_text": purified_original or "",
+                        "updated_text": purified_updated or "",
+                        "summarized_text": purified_summarized or ""
+                    },
+                    parsings={},
+                    processor_metadata=processor_metadata,
+                    embedder_metadata=None
+                )
+
+                input_data.processing_data = processing_data
+
+                # Cache the result
+                cache_key = self._get_cache_key(infoleg_id)
+                output_data = input_data.to_dict()
+                logger.info(
+                    "Caching purified norm (summary-only)",
+                    stage=LogStage.CACHE_WRITE,
+                    infoleg_id=infoleg_id
+                )
+                self.cache.put(cache_key, output_data)
+
+                # Send to processing queue
+                success = self.queue.send_message(
+                    self.llm_service.settings.rabbitmq.queues['output'],
+                    output_data
+                )
+
+                if success:
+                    duration_ms = (time.time() - start_time) * 1000
+                    logger.log_message_sent(
+                        queue_name='processing',
+                        infoleg_id=infoleg_id
+                    )
+                    logger.log_processing_complete(
+                        infoleg_id=infoleg_id,
+                        duration_ms=duration_ms,
+                        model_used="none",
+                        tokens_used=0
+                    )
+                    return True, "purified_summary_only"
+                else:
+                    logger.error(
+                        "Failed to send to processing queue",
+                        stage=LogStage.QUEUE_ERROR,
+                        infoleg_id=infoleg_id
+                    )
+                    return False, "queue_failed"
 
             logger.info(
                 "Text purification complete",
@@ -140,7 +221,8 @@ class PurifierService(PurifierInterface):
             processing_data = ProcessingData(
                 purifications={
                     "original_text": purified_original or "",
-                    "updated_text": purified_updated or ""
+                    "updated_text": purified_updated or "",
+                    "summarized_text": purified_summarized or ""
                 },
                 parsings={},  # Will be filled by processor
                 processor_metadata=processor_metadata,

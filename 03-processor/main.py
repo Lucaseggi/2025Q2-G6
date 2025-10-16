@@ -104,8 +104,16 @@ class DocumentProcessor:
                 return None
 
         except Exception as e:
+            import traceback
             self.stats['failed'] += 1
-            logger.error(f"Error processing document: {e}")
+            error_traceback = traceback.format_exc()
+
+            logger.error(
+                f"Error processing document: {type(e).__name__}: {str(e)}",
+                stage=LogStage.PROCESSING,
+                error_type=type(e).__name__,
+                error_message=str(e)
+            )
 
             # Log failure with exception details
             if 'infoleg_id' in locals():
@@ -114,7 +122,7 @@ class DocumentProcessor:
                     error_type=type(e).__name__,
                     error_message=str(e),
                     stage="processing_exception",
-                    additional_data={"service": "processor"}
+                    additional_data={"service": "processor", "traceback": error_traceback}
                 )
             return None
 
@@ -219,7 +227,15 @@ class DocumentProcessor:
                     last_stats_log = current_time
 
             except Exception as e:
-                logger.error(f"Error in processing loop: {str(e)}")
+                import traceback
+                error_traceback = traceback.format_exc()
+
+                logger.error(
+                    f"Error in processing loop: {type(e).__name__}: {str(e)}",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    traceback=error_traceback
+                )
                 time.sleep(5)  # Wait before retrying
 
 

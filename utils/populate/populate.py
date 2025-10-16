@@ -20,14 +20,14 @@ class NormProcessor:
 
     # Target titulo_sumario values to process
     TARGET_TITULOS = [
-        'ADUANAS',
-        'IMPORTACIONES',
-        'COMERCIO EXTERIOR',
-        'SERVICIOS ADUANEROS',
-        'SERVICIO EXTERIOR',
-        'TARIFAS',
-        'EXPORTACIONES',
         'ARANCELES'
+        # 'ADUANAS',
+        # 'IMPORTACIONES',
+        # 'COMERCIO EXTERIOR',
+        # 'SERVICIOS ADUANEROS',
+        # 'SERVICIO EXTERIOR',
+        # 'TARIFAS',
+        # 'EXPORTACIONES',
     ]
 
     def __init__(
