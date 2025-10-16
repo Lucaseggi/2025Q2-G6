@@ -46,7 +46,7 @@ def transform_id_normas(id_normas_list):
 
     return transformed
 
-def transform_to_legacy_format(message_body):
+def transform_to_norma_format(message_body):
     """Transform new ProcessedData format to legacy format expected by relational-guard"""
     try:
         # Extract data from the new format
@@ -96,6 +96,11 @@ def transform_to_legacy_format(message_body):
             # Add embedding metadata
             norma['embedding_model'] = embedder_metadata.get('embedding_model_used')
             norma['embedded_at'] = embedder_metadata.get('embedding_timestamp')
+
+            # Add summarized text embedding
+            summarized_text_embedding = processing_data.get('summarized_text_embedding')
+            if summarized_text_embedding:
+                norma['summarized_text_embedding'] = summarized_text_embedding
 
             # Add structured text from parsings
             # Priority: updated_text > original_text (matching purifier/processor logic)
@@ -167,7 +172,7 @@ def main():
                 #     print(f"[{datetime.now()}] Warning: Could not dump message to file: {e}")
 
                 # Transform data to legacy format for relational-guard
-                legacy_format_data = transform_to_legacy_format(message_body)
+                legacy_format_data = transform_to_norma_format(message_body)
 
                 # Call sequential pipeline: relational-guard → vectorial-guard
                 # Note: relational-guard gets legacy format, vectorial-guard gets original format with embeddings
