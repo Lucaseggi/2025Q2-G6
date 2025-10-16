@@ -56,10 +56,11 @@ class ParsedText:
 
 @dataclass
 class ProcessingData:
-    purifications: Dict[str, str]  # {"original_text": "...", "updated_text": "..."}
+    purifications: Dict[str, str]  # {"original_text": "...", "updated_text": "...", "summarized_text": "..."}
     parsings: Dict[str, ParsedText]  # {"original_text": ParsedText, "updated_text": ParsedText}
     processor_metadata: ProcessorMetadata
     embedder_metadata: Optional[EmbedderMetadata] = None
+    summarized_text_embedding: Optional[List[float]] = None
 
 @dataclass
 class ProcessedData:

@@ -94,6 +94,9 @@ class EmbedderService(EmbedderServiceInterface):
                 )
                 self._add_traditional_embedding(input_data)
 
+            # Generate embedding for summarized_text if available
+            self._add_summarized_text_embedding(input_data, norma_id)
+
             # Create embedder metadata
             embedder_metadata = EmbedderMetadata(
                 embedding_model_used=self.norm_embedder_service.get_model_name(),
@@ -204,6 +207,36 @@ class EmbedderService(EmbedderServiceInterface):
             embedding_vector = self.norm_embedder_service.generate_embedding(content_to_embed)
             if embedding_vector and content_source in input_data.processing_data.parsings:
                 input_data.processing_data.parsings[content_source].embeddings = embedding_vector
+
+    def _add_summarized_text_embedding(self, input_data: ProcessedData, norma_id: int):
+        """Generate and add embedding for summarized text (summarized_text)"""
+        purifications = input_data.processing_data.purifications
+
+        summarized_text = purifications.get("summarized_text")
+
+        if summarized_text and summarized_text.strip():
+            logger.info(
+                "Generating embedding for summarized text",
+                stage=LogStage.EMBEDDING,
+                infoleg_id=norma_id
+            )
+
+            summarized_text_embedding = self.norm_embedder_service.generate_embedding(summarized_text.strip())
+
+            if summarized_text_embedding:
+                input_data.processing_data.summarized_text_embedding = summarized_text_embedding
+                logger.info(
+                    "Summarized text embedding generated successfully",
+                    stage=LogStage.EMBEDDING,
+                    infoleg_id=norma_id,
+                    embedding_dimension=len(summarized_text_embedding)
+                )
+            else:
+                logger.warning(
+                    "Failed to generate summarized text embedding",
+                    stage=LogStage.EMBEDDING,
+                    infoleg_id=norma_id
+                )
 
     def embed_text(self, text: str) -> Optional[List[float]]:
         """Generate embedding for a single text prompt"""
