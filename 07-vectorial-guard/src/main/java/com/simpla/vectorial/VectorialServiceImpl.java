@@ -19,6 +19,7 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
 
     private static final String DIVISION = "division";
     private static final String ARTICLE = "article";
+    private static final String SUMMARIZED_TEXT = "summarized_text";
 
     private final VectorStoreService vectorStore;
     private final ObjectMapper objectMapper;
@@ -133,6 +134,14 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
                                        "texto_norma_actualizado", documentCount, errors);
                     }
                 }
+
+                // Process summarized_text_embedding if present
+                JsonNode summarizedTextEmbedding = normaNode.path("summarized_text_embedding");
+                if (!summarizedTextEmbedding.isMissingNode() && summarizedTextEmbedding.isArray()) {
+                    processSummarizedTextEmbedding(summarizedTextEmbedding, infolegId, tipoNorma,
+                            jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario,
+                            "texto_resumido", documentCount, errors);
+                }
             }
 
             // Prepare response
@@ -187,32 +196,21 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
                           ", isArray=" + embeddingNode.isArray() +
                           ", size=" + (embeddingNode.isArray() ? embeddingNode.size() : 0));
 
-        if (!embeddingNode.isMissingNode() && embeddingNode.isArray()) {
+        if (embeddingNode.isMissingNode() || !embeddingNode.isArray()) {
+            System.out.println("Skipping division " + divisionIndex + " (" + divisionName + ") - no valid embedding");
+        } else {
             // Store division embedding
             String documentId = String.format("n%d_d%d", infolegId, division.path("id").asInt());
             System.out.println("Attempting to store division: " + documentId);
 
-            List<Double> embedding = new ArrayList<>();
-            for (JsonNode embeddingValue : embeddingNode) {
-                embedding.add(embeddingValue.asDouble());
-            }
+            List<Double> embedding = extractEmbedding(embeddingNode);
 
             Map<String, Object> metadata = createDocumentMetadata(
                     DIVISION, division.path("id").asInt(),
                     source, infolegId,
                     tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario);
 
-
-            VectorStoreService.StoreResult result = vectorStore.storeDocument(documentId, embedding, metadata);
-            if (result.isSuccess()) {
-                documentCount.incrementAndGet();
-                System.out.println("Stored division: " + documentId);
-            } else {
-                System.err.println("Failed to store division " + documentId + ": " + result.getMessage());
-                errors.add("Division " + documentId + ": " + result.getMessage());
-            }
-        } else {
-            System.out.println("Skipping division " + divisionIndex + " (" + divisionName + ") - no valid embedding");
+            storeDocumentAndTrack(documentId, embedding, metadata, "division", documentCount, errors);
         }
 
         // Process articles in this division
@@ -235,34 +233,72 @@ public class VectorialServiceImpl extends VectorialServiceGrpc.VectorialServiceI
             JsonNode article = articlesArray.get(i);
 
             JsonNode embeddingNode = article.path("embedding");
-            if (!embeddingNode.isMissingNode() && embeddingNode.isArray()) {
-                String documentId = String.format("n%d_a%d",
-                        infolegId,
-                        article.path("id").asInt());
-
-                List<Double> embedding = new ArrayList<>();
-                for (JsonNode embeddingValue : embeddingNode) {
-                    embedding.add(embeddingValue.asDouble());
-                }
-
-                Map<String, Object> metadata = createDocumentMetadata(
-                        ARTICLE, article.path("id").asInt(),
-                        source, infolegId,
-                        tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario);
-
-                VectorStoreService.StoreResult result = vectorStore.storeDocument(documentId, embedding, metadata);
-                if (result.isSuccess()) {
-                    documentCount.incrementAndGet();
-                    System.out.println("Stored article: " + documentId);
-                } else {
-                    errors.add("Article " + documentId + ": " + result.getMessage());
-                }
+            if (embeddingNode.isMissingNode() || !embeddingNode.isArray()) {
+                continue;
             }
+
+            String documentId = String.format("n%d_a%d",
+                    infolegId,
+                    article.path("id").asInt());
+
+            List<Double> embedding = extractEmbedding(embeddingNode);
+
+            Map<String, Object> metadata = createDocumentMetadata(
+                    ARTICLE, article.path("id").asInt(),
+                    source, infolegId,
+                    tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario);
+
+            storeDocumentAndTrack(documentId, embedding, metadata, "article", documentCount, errors);
 
             JsonNode articlesNode = article.path("articles");
             if (!articlesNode.isMissingNode() && articlesNode.isArray()) {
                 processArticles(articlesNode, infolegId, tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario, source, divisionIndex, documentCount, errors);
             }
+        }
+    }
+
+    private void processSummarizedTextEmbedding(JsonNode embeddingNode, Integer infolegId, String tipoNorma,
+                                                String jurisdiccion, String fechaDeSancion, Integer nroBoletin,
+                                                String tituloSumario, String source, AtomicInteger documentCount,
+                                                List<String> errors) {
+        System.out.println("Processing summarized_text_embedding for norma: " + infolegId);
+
+        if (!embeddingNode.isArray() || embeddingNode.isEmpty()) {
+            System.out.println("Skipping summarized text embedding for norma " + infolegId + " - no valid embedding");
+            return;
+        }
+
+        List<Double> embedding = extractEmbedding(embeddingNode);
+
+        String documentId = String.format("n%d_summarized", infolegId);
+        System.out.println("Attempting to store summarized text embedding: " + documentId);
+
+        Map<String, Object> metadata = createDocumentMetadata(
+                SUMMARIZED_TEXT, infolegId,
+                source, infolegId,
+                tipoNorma, jurisdiccion, fechaDeSancion, nroBoletin, tituloSumario);
+
+        storeDocumentAndTrack(documentId, embedding, metadata, SUMMARIZED_TEXT, documentCount, errors);
+    }
+
+    private List<Double> extractEmbedding(JsonNode embeddingNode) {
+        List<Double> embedding = new ArrayList<>();
+        for (JsonNode embeddingValue : embeddingNode) {
+            embedding.add(embeddingValue.asDouble());
+        }
+        return embedding;
+    }
+
+    private void storeDocumentAndTrack(String documentId, List<Double> embedding, Map<String, Object> metadata,
+                                       String documentType, AtomicInteger documentCount, List<String> errors) {
+        VectorStoreService.StoreResult result = vectorStore.storeDocument(documentId, embedding, metadata);
+        if (result.isSuccess()) {
+            documentCount.incrementAndGet();
+            System.out.println("Stored " + documentType + ": " + documentId);
+        } else {
+            String errorMsg = documentType + " " + documentId + ": " + result.getMessage();
+            System.err.println("Failed to store " + errorMsg);
+            errors.add(errorMsg);
         }
     }
 

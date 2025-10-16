@@ -97,6 +97,11 @@ def transform_to_legacy_format(message_body):
             norma['embedding_model'] = embedder_metadata.get('embedding_model_used')
             norma['embedded_at'] = embedder_metadata.get('embedding_timestamp')
 
+            # Add summarized text embedding
+            summarized_text_embedding = processing_data.get('summarized_text_embedding')
+            if summarized_text_embedding:
+                norma['summarized_text_embedding'] = summarized_text_embedding
+
             # Add structured text from parsings
             # Priority: updated_text > original_text (matching purifier/processor logic)
             updated_parsing = parsings.get('updated_text', {})
