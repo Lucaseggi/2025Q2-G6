@@ -1,0 +1,40 @@
+services:
+  populate:
+    build: .
+    container_name: populate-norms
+    command: [
+      "--pg-host", "simpla_postgres",
+      "--pg-port", "5432",
+      "--pg-database", "simpla",
+      "--pg-user", "postgres",
+      "--pg-password", "postgres",
+      "--api-url", "http://scraper:8003/process",
+      "--delay", "10"
+    ]
+    networks:
+      - simpla_data_extraction_rag-network
+    depends_on:
+      - scraper
+      - rebuilder-postgres
+    profiles:
+      - tools
+
+  # Reference to the main scraper service
+  scraper:
+    image: simpla_data_extraction-scraper:latest
+    container_name: scraper
+    external: true
+    networks:
+      - simpla_data_extraction_rag-network
+
+  # Reference to the rebuilder postgres
+  rebuilder-postgres:
+    image: postgres:15
+    container_name: simpla_postgres
+    external: true
+    networks:
+      - simpla_data_extraction_rag-network
+
+networks:
+  simpla_data_extraction_rag-network:
+    external: true

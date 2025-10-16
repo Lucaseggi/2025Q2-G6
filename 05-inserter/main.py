@@ -98,8 +98,13 @@ def transform_to_legacy_format(message_body):
             norma['embedded_at'] = embedder_metadata.get('embedding_timestamp')
 
             # Add structured text from parsings
+            # Priority: updated_text > original_text (matching purifier/processor logic)
+            updated_parsing = parsings.get('updated_text', {})
             original_parsing = parsings.get('original_text', {})
-            if original_parsing and 'structured_data' in original_parsing:
+
+            if updated_parsing and 'structured_data' in updated_parsing:
+                norma['structured_texto_norma'] = updated_parsing['structured_data']
+            elif original_parsing and 'structured_data' in original_parsing:
                 norma['structured_texto_norma'] = original_parsing['structured_data']
 
         # Return in the format expected by relational-guard

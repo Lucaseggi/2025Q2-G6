@@ -82,7 +82,7 @@ class InfolegNormProvider(NormProviderInterface):
             pag_boletin=api_response.get('pagBoletin'),
             texto_resumido=api_response.get('textoResumido'),
             texto_norma=api_response.get('textoNorma'),
-            texto_norma_actualizado=api_response.get('textoNormaActualizado'),
+            texto_norma_actualizado=api_response.get('textoNormaAct'),
             estado=api_response.get('estado'),
             lista_normas_que_complementa=api_response.get('listaNormasQueComplementa', []),
             lista_normas_que_la_complementan=api_response.get('listaNormasQueLaComplementan', [])

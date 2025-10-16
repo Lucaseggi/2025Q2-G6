@@ -93,3 +93,5 @@ terraform/terraform.exe
 03-processor/test_summary_generator.py
 
 utils/rebuilder/norms_dump
+
+DEPLOYMENT_GUIDE.md
