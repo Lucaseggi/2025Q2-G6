@@ -5,7 +5,7 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from config import ProcessorSettings
+from src.config.settings import get_settings
 from src.interfaces.parsing_service_interface import ParsingServiceInterface
 from src.services.text_processing_service import TextProcessingService
 from src.services.llm_service import LLMService
@@ -15,9 +15,9 @@ from src.services.parsing_service import ParsingService
 from src.services.cache_replay_service import CacheReplayService
 
 
-def get_settings() -> ProcessorSettings:
+def get_processor_settings():
     """Get settings instance"""
-    return ProcessorSettings()
+    return get_settings()
 
 
 def get_text_processor() -> TextProcessingService:
@@ -27,13 +27,13 @@ def get_text_processor() -> TextProcessingService:
 
 def get_llm_service() -> LLMService:
     """Provide LLM service instance"""
-    settings = get_settings()
+    settings = get_processor_settings()
     return LLMService(settings)
 
 
 def get_verification_service() -> VerificationService:
     """Provide verification service instance"""
-    settings = get_settings()
+    settings = get_processor_settings()
     return VerificationService(
         similarity_threshold=getattr(settings.gemini, 'diff_threshold', 0.15)
     )
@@ -41,7 +41,7 @@ def get_verification_service() -> VerificationService:
 
 def get_storage_service() -> StorageService:
     """Provide storage service instance"""
-    settings = get_settings()
+    settings = get_processor_settings()
     return StorageService(
         bucket_name=settings.s3.bucket_name,
         endpoint_url=settings.s3.endpoint,
@@ -63,5 +63,5 @@ def get_parsing_service() -> ParsingServiceInterface:
 def get_cache_replay_service() -> CacheReplayService:
     """Provide cache replay service instance"""
     storage = get_storage_service()
-    settings = get_settings()
+    settings = get_processor_settings()
     return CacheReplayService(storage, settings)

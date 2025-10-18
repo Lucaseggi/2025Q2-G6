@@ -9,7 +9,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../../shared'))
 from sqs_client import SQSClient
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
-from config import ProcessorSettings
+from ..config.settings import Settings
 
 from ..interfaces.storage_interface import StorageInterface
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class CacheReplayService:
     """Service for replaying cached processor results to embedding queue"""
 
-    def __init__(self, storage_service: StorageInterface, settings: ProcessorSettings):
+    def __init__(self, storage_service: StorageInterface, settings: Settings):
         """Initialize cache replay service"""
         self.storage = storage_service
         self.settings = settings

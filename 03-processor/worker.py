@@ -20,7 +20,7 @@ from services.llm_service import LLMService
 from services.verification_service import VerificationService
 from services.storage_service import StorageService
 
-from config import ProcessorSettings
+from src.config.settings import get_settings
 
 logger = StructuredLogger("processor", "worker")
 
@@ -33,7 +33,7 @@ class DocumentProcessor:
         logger.info("Initializing Document Processor", stage=LogStage.STARTUP)
 
         # Load configuration
-        self.config = ProcessorSettings()
+        self.config = get_settings()
 
         # Initialize shared components
         # Set SQS environment variables

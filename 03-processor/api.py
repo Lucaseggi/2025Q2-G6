@@ -7,13 +7,13 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
-from config import ProcessorSettings
+from src.config.settings import get_settings
 from src.api.endpoints import router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-settings = ProcessorSettings()
+settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

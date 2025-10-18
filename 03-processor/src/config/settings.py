@@ -1,17 +1,18 @@
+"""Configuration management for processor service using Pydantic"""
+
 import json
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, Dict
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings
 
 
-# Nested configuration models for structure
 class ServiceConfig(BaseModel):
     """Service configuration"""
-    name: str = "enhanced-scraper-ms"
-    version: str = "2.0.0"
-    port: int = Field(ge=1, le=65535)
+    name: str = "processor-ms"
+    version: str = "1.0.0"
+    port: int = Field(ge=1, le=65535, default=8005)
     debug: bool = False
 
 
@@ -28,8 +29,10 @@ class SQSConfig(BaseModel):
             values['endpoint'] = os.getenv('SQS_ENDPOINT')
         if os.getenv('AWS_DEFAULT_REGION'):
             values['region'] = os.getenv('AWS_DEFAULT_REGION')
-        if os.getenv('PURIFYING_QUEUE_NAME') and 'queues' in values:
-            values['queues']['output'] = os.getenv('PURIFYING_QUEUE_NAME')
+        if os.getenv('PROCESSING_QUEUE_NAME') and 'queues' in values:
+            values['queues']['input'] = os.getenv('PROCESSING_QUEUE_NAME')
+        if os.getenv('EMBEDDING_QUEUE_NAME') and 'queues' in values:
+            values['queues']['output'] = os.getenv('EMBEDDING_QUEUE_NAME')
         return values
 
 
@@ -38,8 +41,8 @@ class S3Config(BaseModel):
     bucket_name: str
     endpoint: Optional[str] = None
     region: str = "us-east-1"
-    access_key_id: str = ""  # Will be set from environment
-    secret_access_key: str = ""  # Will be set from environment
+    access_key_id: str = ""
+    secret_access_key: str = ""
 
     @model_validator(mode='before')
     def override_from_env(cls, values):
@@ -53,43 +56,39 @@ class S3Config(BaseModel):
         return values
 
 
-class InfolegApiEndpoints(BaseModel):
-    """InfoLeg API endpoints"""
-    norms_by_year: str
-    norm_details: str
+class GeminiConfig(BaseModel):
+    """Gemini LLM configuration"""
+    models: list[str]
+    rate_limit: int
+    max_input_tokens: int
+    max_output_tokens: int
+    max_retries: int
+    retry_delay: int
+    diff_threshold: float
+    api_keys: list[str] = []
 
 
-class InfolegApiConfig(BaseModel):
-    """InfoLeg API configuration"""
-    base_url: str
-    endpoints: InfolegApiEndpoints
-    rate_limit_delay: float = Field(ge=0)
-    max_retries: int = Field(ge=0)
-    timeout: int = Field(ge=1)
-    user_agent: str
-    verify_ssl: bool = False
-
-    @field_validator('base_url')
-    def validate_base_url(cls, v):
-        if not v.startswith(('http://', 'https://')):
-            raise ValueError('base_url must start with http:// or https://')
-        return v
+class ProcessingConfig(BaseModel):
+    """Processing configuration"""
+    batch_size: int
+    timeout_seconds: int
+    stats_interval_minutes: int
 
 
 class Settings(BaseSettings):
     """Application configuration settings with JSON + env support"""
 
-    # Structured configuration
     service: ServiceConfig
     sqs: SQSConfig
     s3: S3Config
-    infoleg_api: InfolegApiConfig
+    gemini: GeminiConfig
+    processing: ProcessingConfig
 
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
-        "extra": "ignore"  # Ignore extra fields instead of raising error
+        "extra": "ignore"
     }
 
     @model_validator(mode='before')
@@ -101,24 +100,37 @@ class Settings(BaseSettings):
             with open(config_path) as f:
                 json_config = json.load(f)
 
-            # Merge JSON config with any provided values (env vars take precedence)
             for key, value in json_config.items():
                 if key not in values:
                     values[key] = value
 
-        # Add environment variables for nested configs
+        # Add environment variables for S3
         if 's3' in values and isinstance(values['s3'], dict):
-            aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-            aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-            if aws_access_key:
-                values['s3']['access_key_id'] = aws_access_key
-            if aws_secret_key:
-                values['s3']['secret_access_key'] = aws_secret_key
+            aws_access_key = os.getenv('AWS_ACCESS_KEY_ID', 'test')
+            aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY', 'test')
+            values['s3']['access_key_id'] = aws_access_key
+            values['s3']['secret_access_key'] = aws_secret_key
+
+        # Get Gemini API keys from environment
+        if 'gemini' in values and isinstance(values['gemini'], dict):
+            api_keys = []
+            for i in range(1, 6):
+                key = os.getenv(f'GEMINI_API_KEY_{i}')
+                if key:
+                    api_keys.append(key)
+            if not api_keys:
+                key = os.getenv('GEMINI_API_KEY')
+                if key:
+                    api_keys.append(key)
+            values['gemini']['api_keys'] = api_keys
 
         return values
-
 
 
 def get_settings() -> Settings:
     """Get application settings instance"""
     return Settings()
+
+
+# Backwards compatibility alias
+ProcessorSettings = Settings

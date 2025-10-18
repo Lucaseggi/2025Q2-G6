@@ -1,0 +1,27 @@
+# Dockerfile for AWS Lambda deployment via ECR
+# Uses AWS Lambda Python base image with Lambda Runtime Interface built-in
+
+FROM public.ecr.aws/lambda/python:3.11
+
+# Set working directory (Lambda expects code in /var/task)
+WORKDIR /var/task
+
+# Copy and install shared dependencies first (better layer caching)
+COPY shared/requirements.txt ./shared_requirements.txt
+RUN pip install --no-cache-dir -r shared_requirements.txt
+
+# Copy and install scraper dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy shared modules
+COPY shared ./shared
+
+# Copy scraper code
+COPY src ./src
+COPY config.json .
+COPY lambda_handler.py .
+
+# Lambda will invoke the handler specified in CMD
+# Format: module.function_name
+CMD ["lambda_handler.lambda_handler"]
