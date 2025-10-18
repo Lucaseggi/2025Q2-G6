@@ -2,9 +2,8 @@
 
 import logging
 import json
-import re
 import time
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 
 import google.generativeai as genai
@@ -15,6 +14,18 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from interfaces.llm_service_interface import LLMServiceInterface, ProcessingResult as InterfaceProcessingResult
+
+# Import legal document schema from local models package
+# Use importlib to avoid conflict with shared/models.py
+# To make a fucking import magic is fucking neccesary ???
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "legal_document_schema",
+    os.path.join(os.path.dirname(__file__), '..', 'models', 'legal_document_schema.py')
+)
+legal_document_schema = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(legal_document_schema)
+LegalDocument = legal_document_schema.LegalDocument
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +79,19 @@ class LLMService(LLMServiceInterface):
         """Get the system prompt for norm structuring"""
         return self._load_prompt('system_prompt')
 
-    def _call_gemini_with_retries_sync(self, model_name: str, text: str, system_prompt: str) -> ProcessingResult:
-        """Call Gemini API with retries synchronously"""
+    def _call_gemini_with_retries_sync(self, model_name: str, text: str, system_prompt: str, use_structured_output: bool = True) -> ProcessingResult:
+        """Call Gemini API with retries synchronously
+
+        Args:
+            model_name: Name of the Gemini model to use
+            text: Input text to process
+            system_prompt: System instruction for the model
+            use_structured_output: Whether to use structured JSON output (default: True)
+        """
 
         @retry(
             stop=stop_after_attempt(self.config.gemini.max_retries),
-            wait=wait_exponential(multiplier=1, min=4, max=10),
+            wait=wait_exponential(multiplier=1, min=4, max=60),
             retry=retry_if_exception_type((Exception,))
         )
         def _make_api_call():
@@ -86,14 +104,55 @@ class LLMService(LLMServiceInterface):
                 system_instruction=system_prompt
             )
 
+            # Configure generation parameters
+            gen_config = {
+                'max_output_tokens': self.config.gemini.max_output_tokens,
+                'temperature': 0.1,
+                'top_p': 0.8,
+            }
+
+            # Add structured output configuration if requested
+            if use_structured_output:
+                gen_config['response_mime_type'] = 'application/json'
+                # Use manual schema dict to avoid Pydantic recursion issues
+                # Gemini handles recursive schemas natively
+                gen_config['response_schema'] = {
+                    "type": "object",
+                    "properties": {
+                        "divisions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "ordinal": {"type": "string"},
+                                    "title": {"type": "string"},
+                                    "body": {"type": "string"},
+                                    "articles": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "ordinal": {"type": "string"},
+                                                "body": {"type": "string"},
+                                                "articles": {"type": "array", "items": {}}  # Recursive reference
+                                            },
+                                            "required": ["ordinal", "body", "articles"]
+                                        }
+                                    },
+                                    "divisions": {"type": "array", "items": {}}  # Recursive reference
+                                },
+                                "required": ["name", "ordinal", "title", "body", "articles", "divisions"]
+                            }
+                        }
+                    },
+                    "required": ["divisions"]
+                }
+
             # Make the API call
             response = model.generate_content(
                 text,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=self.config.gemini.max_output_tokens,
-                    temperature=0.1,
-                    top_p=0.8,
-                )
+                generation_config=genai.types.GenerationConfig(**gen_config)
             )
 
             if not response.text:
@@ -104,18 +163,19 @@ class LLMService(LLMServiceInterface):
         try:
             response = _make_api_call()
 
-            # For quality control calls, return the raw text
-            if "analiza el siguiente diff" in text.lower():
+            # Get token usage (works for both structured and unstructured calls)
+            tokens_used = 0
+            try:
+                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                    if hasattr(response.usage_metadata, 'totalTokenCount'):
+                        tokens_used = response.usage_metadata.totalTokenCount
+                    elif hasattr(response.usage_metadata, 'total_token_count'):
+                        tokens_used = response.usage_metadata.total_token_count
+            except:
                 tokens_used = 0
-                try:
-                    if hasattr(response, 'usage_metadata') and response.usage_metadata:
-                        if hasattr(response.usage_metadata, 'totalTokenCount'):
-                            tokens_used = response.usage_metadata.totalTokenCount
-                        elif hasattr(response.usage_metadata, 'total_token_count'):
-                            tokens_used = response.usage_metadata.total_token_count
-                except:
-                    tokens_used = 0
 
+            # For unstructured calls (quality control), return raw text
+            if not use_structured_output:
                 return ProcessingResult(
                     success=True,
                     structured_data=response.text,
@@ -123,29 +183,16 @@ class LLMService(LLMServiceInterface):
                     tokens_used=tokens_used
                 )
 
-            # Parse JSON response for structuring calls
-            structured_data = self._parse_json_response(response.text)
-
-            if not structured_data:
+            # For structured output, parse JSON directly
+            # The response should already be valid JSON thanks to response_schema
+            try:
+                structured_data = json.loads(response.text)
+            except json.JSONDecodeError as e:
                 return ProcessingResult(
                     success=False,
-                    error_message="Failed to parse JSON from API response",
+                    error_message=f"Failed to parse JSON from API response: {str(e)}",
                     model_used=model_name
                 )
-
-            # Try to get token usage safely
-            tokens_used = 0
-            try:
-                if hasattr(response, 'usage_metadata') and response.usage_metadata:
-                    # Try different possible field names
-                    if hasattr(response.usage_metadata, 'totalTokenCount'):
-                        tokens_used = response.usage_metadata.totalTokenCount
-                    elif hasattr(response.usage_metadata, 'total_token_count'):
-                        tokens_used = response.usage_metadata.total_token_count
-                    else:
-                        tokens_used = 0
-            except Exception as e:
-                tokens_used = 0
 
             return ProcessingResult(
                 success=True,
@@ -160,21 +207,6 @@ class LLMService(LLMServiceInterface):
                 error_message=str(e),
                 model_used=model_name
             )
-
-    def _parse_json_response(self, response_text: str) -> Optional[Dict[str, Any]]:
-        """Parse JSON from API response"""
-        try:
-            # Try to extract JSON from response
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                return json.loads(json_str)
-            else:
-                # Try parsing the entire response as JSON
-                return json.loads(response_text)
-
-        except json.JSONDecodeError as e:
-            return None
 
     def _rotate_api_key(self):
         """Rotate to next API key"""

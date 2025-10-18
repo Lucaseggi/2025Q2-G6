@@ -8,34 +8,40 @@ from fastapi import FastAPI
 from src.config.settings import get_settings
 from src.api.endpoints import router
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load settings (automatically loads config.json + .env)
 settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown"""
-    logger.info("Purifier API started")
+    # Startup
+    logger.info("InfoLeg Enhanced Scraper API started")
     logger.info(f"Running on port {settings.service.port}")
 
     yield
 
-    logger.info("Purifier API shutting down")
+    # Shutdown (if needed)
+    logger.info("InfoLeg Enhanced Scraper API shutting down")
 
+# Create FastAPI app
 app = FastAPI(
-    title="Purifier API",
-    description="Microservice for text purification with orthography fixes",
+    title="InfoLeg Enhanced Scraper API",
+    description="Microservice for scraping and processing InfoLeg norms",
     version=settings.service.version,
     lifespan=lifespan
 )
 
+# Include API routes
 app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "main:app",
+        "api:app",
         host="0.0.0.0",
         port=settings.service.port,
         reload=settings.service.debug,

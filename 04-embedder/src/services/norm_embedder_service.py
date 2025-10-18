@@ -6,6 +6,7 @@ from typing import Optional, List, Dict, Any
 
 from google import genai
 from google.genai import types
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Add src to path for interfaces
 import sys
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class GeminiNormEmbedderService(NormEmbedderServiceInterface):
     """Gemini API norm embedder service implementation"""
 
-    def __init__(self, api_key: str, model_name: str = "gemini-embedding-001", output_dimensionality: int = 768):
+    def __init__(self, api_key: str, model_name: str = "gemini-embedding-001", output_dimensionality: int = 768, max_retries: int = 5):
         """
         Initialize Gemini embedding model.
 
@@ -26,10 +27,12 @@ class GeminiNormEmbedderService(NormEmbedderServiceInterface):
             api_key: Gemini API key
             model_name: Name of the Gemini embedding model
             output_dimensionality: Dimension of output embeddings
+            max_retries: Maximum number of retry attempts for API calls
         """
         self.api_key = api_key
         self.model_name = model_name
         self.output_dimensionality = output_dimensionality
+        self.max_retries = max_retries
         self.client = None
         self._initialize_client()
 
@@ -48,7 +51,7 @@ class GeminiNormEmbedderService(NormEmbedderServiceInterface):
             return False
 
     def generate_embedding(self, text: str) -> Optional[List[float]]:
-        """Generate embedding using Gemini API"""
+        """Generate embedding using Gemini API with retry logic"""
         if not self.client:
             if not self._initialize_client():
                 return None
@@ -57,7 +60,12 @@ class GeminiNormEmbedderService(NormEmbedderServiceInterface):
             logger.warning("Empty text provided for embedding")
             return None
 
-        try:
+        @retry(
+            stop=stop_after_attempt(self.max_retries),
+            wait=wait_exponential(multiplier=1, min=4, max=60),
+            retry=retry_if_exception_type((Exception,))
+        )
+        def _make_embedding_call():
             result = self.client.models.embed_content(
                 model=self.model_name,
                 contents=text.strip(),
@@ -70,8 +78,10 @@ class GeminiNormEmbedderService(NormEmbedderServiceInterface):
 
             return embedding
 
+        try:
+            return _make_embedding_call()
         except Exception as e:
-            logger.error(f"Error generating embedding: {e}")
+            logger.error(f"Error generating embedding after retries: {e}")
             return None
 
     def get_embedding_dimension(self) -> int:

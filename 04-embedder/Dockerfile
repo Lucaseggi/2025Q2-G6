@@ -11,4 +11,4 @@ COPY . .
 # Create logs directory for structured logging
 RUN mkdir -p /app/logs && chmod 777 /app/logs
 
-CMD ["python", "main.py"]
+CMD ["python", "worker.py"]

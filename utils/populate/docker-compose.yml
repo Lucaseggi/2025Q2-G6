@@ -9,7 +9,7 @@ services:
       "--pg-user", "postgres",
       "--pg-password", "postgres",
       "--api-url", "http://scraper:8003/process",
-      "--delay", "5"
+      "--delay", "1"
     ]
     networks:
       - simpla_data_extraction_rag-network

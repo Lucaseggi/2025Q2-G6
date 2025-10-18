@@ -18,6 +18,7 @@
   "embedding": {
     "embedding_model_name": "gemini-embedding-001",
     "output_dimensionality": 768,
-    "provider": "gemini"
+    "provider": "gemini",
+    "max_retries": 5
   }
 }

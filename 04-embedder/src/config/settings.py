@@ -32,6 +32,7 @@ class EmbeddingConfig(BaseModel):
     embedding_model_name: str
     output_dimensionality: int
     provider: str
+    max_retries: int = 5
 
 
 class Settings(BaseModel):

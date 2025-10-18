@@ -164,7 +164,7 @@ services:
 
   processor-worker:
     build: ./03-processor
-    command: ["python", "main.py"]
+    command: ["python", "worker.py"]
     env_file:
       - ./03-processor/.env
     depends_on:
