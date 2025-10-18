@@ -258,7 +258,7 @@ services:
     build:
       context: ./07-vectorial-guard
       args:
-        MODE: grpc  # Options: grpc or api
+        MODE: api  # Options: grpc or api
     container_name: vectorial-guard
     ports:
       - "50052:50052"
