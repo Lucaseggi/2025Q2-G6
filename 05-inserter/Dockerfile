@@ -15,4 +15,4 @@ RUN python -m grpc_tools.protoc -I./proto --python_out=. --grpc_python_out=. ./p
 # Create logs directory for structured logging
 RUN mkdir -p /app/logs && chmod 777 /app/logs
 
-CMD ["python", "-u", "main.py"]
+CMD ["python", "-u", "worker.py"]

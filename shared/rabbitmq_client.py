@@ -7,6 +7,9 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Reduce Pika library logging noise
+logging.getLogger('pika').setLevel(logging.WARNING)
+
 class RabbitMQClient:
     def __init__(self):
         self.connection = None
@@ -51,7 +54,7 @@ class RabbitMQClient:
             # This ensures workers only process one message at a time
             self.channel.basic_qos(prefetch_count=1)
 
-            logger.info(f"Connected to RabbitMQ at {host}:{port}")
+            logger.debug(f"Connected to RabbitMQ at {host}:{port}")
 
         except Exception as e:
             logger.error(f"Failed to connect to RabbitMQ: {e}")
@@ -62,7 +65,7 @@ class RabbitMQClient:
         try:
             for queue_name in self.queues.values():
                 self.channel.queue_declare(queue=queue_name, durable=True)
-                logger.info(f"Declared queue: {queue_name}")
+                logger.debug(f"Declared queue: {queue_name}")
         except Exception as e:
             logger.error(f"Failed to declare queues: {e}")
             raise
@@ -104,7 +107,7 @@ class RabbitMQClient:
                 )
             )
             
-            logger.info(f"Message sent to {queue_name}")
+            logger.debug(f"Message sent to {queue_name}")
             return True
             
         except Exception as e:
@@ -133,7 +136,7 @@ class RabbitMQClient:
                         message = json.loads(body.decode('utf-8'))
                         # Acknowledge message
                         self.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
-                        logger.info(f"Message received from {queue_name}")
+                        logger.debug(f"Message received from {queue_name}")
                         return message
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to decode message from {queue_name}: {e}")
@@ -162,7 +165,7 @@ class RabbitMQClient:
                 self.channel.close()
             if self.connection and not self.connection.is_closed:
                 self.connection.close()
-            logger.info("RabbitMQ connection closed")
+            logger.debug("RabbitMQ connection closed")
         except Exception as e:
             logger.error(f"Error closing connection: {e}")
     

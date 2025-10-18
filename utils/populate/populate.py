@@ -22,12 +22,12 @@ class NormProcessor:
     TARGET_TITULOS = [
         'ARANCELES'
         # 'ADUANAS',
-        # 'IMPORTACIONES',
-        # 'COMERCIO EXTERIOR',
-        # 'SERVICIOS ADUANEROS',
-        # 'SERVICIO EXTERIOR',
-        # 'TARIFAS',
-        # 'EXPORTACIONES',
+        'IMPORTACIONES',
+        'COMERCIO EXTERIOR',
+        'SERVICIOS ADUANEROS',
+        'SERVICIO EXTERIOR',
+        'TARIFAS',
+        'EXPORTACIONES',
     ]
 
     def __init__(

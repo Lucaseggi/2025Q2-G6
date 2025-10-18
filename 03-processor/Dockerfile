@@ -21,6 +21,6 @@ RUN chown -R appuser:appuser /app
 # Switch to non-root user
 USER appuser
 
-EXPOSE 8004
+EXPOSE 8005
 
-CMD ["python", "main.py"]
+CMD ["python", "worker.py"]
