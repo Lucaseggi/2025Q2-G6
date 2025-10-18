@@ -22,46 +22,46 @@
         <main.class>com.simpla.vectorial.VectorialApplication</main.class>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring.boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
-        <!-- Spring Boot dependencies -->
+        <!-- Spring Boot core -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <version>${spring.boot.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-tomcat</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
-            <version>${spring.boot.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
-        <!-- gRPC dependencies (still needed for proto classes) -->
+        <!-- Minimal logging -->
         <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-netty-shaded</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-protobuf</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-stub</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-services</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-
-        <!-- Protocol Buffers -->
-        <dependency>
-            <groupId>com.google.protobuf</groupId>
-            <artifactId>protobuf-java</artifactId>
-            <version>${protobuf.version}</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
         </dependency>
 
         <!-- OpenSearch Java Client -->
@@ -83,67 +83,52 @@
             <version>4.5.14</version>
         </dependency>
 
-        <!-- Pinecone Java Client - Using older stable version -->
+        <!-- Pinecone Java Client -->
         <dependency>
             <groupId>io.pinecone</groupId>
             <artifactId>pinecone-client</artifactId>
             <version>2.1.0</version>
         </dependency>
 
-        <!-- JSON processing -->
+        <!-- Jackson for JSON -->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.15.2</version>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
-        <!-- Logging -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>2.0.9</version>
-        </dependency>
-
-        <!-- Annotation for Java 9+ -->
+        <!-- Annotations -->
         <dependency>
             <groupId>org.apache.tomcat</groupId>
             <artifactId>annotations-api</artifactId>
             <version>6.0.53</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- AWS Lambda core dependencies -->
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-core</artifactId>
+            <version>1.2.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-events</artifactId>
+            <version>3.11.3</version>
+        </dependency>
+
+        <!-- AWS Serverless Java Container for Spring Boot -->
+        <dependency>
+            <groupId>com.amazonaws.serverless</groupId>
+            <artifactId>aws-serverless-java-container-springboot3</artifactId>
+            <version>2.0.1</version>
+        </dependency>
     </dependencies>
 
     <build>
-        <extensions>
-            <extension>
-                <groupId>kr.motd.maven</groupId>
-                <artifactId>os-maven-plugin</artifactId>
-                <version>1.7.1</version>
-            </extension>
-        </extensions>
-
+        <finalName>vectorial-guard-${project.version}</finalName>
         <plugins>
-            <!-- Protobuf plugin for generating Java classes -->
-            <plugin>
-                <groupId>org.xolstice.maven.plugins</groupId>
-                <artifactId>protobuf-maven-plugin</artifactId>
-                <version>0.6.1</version>
-                <configuration>
-                    <protocArtifact>com.google.protobuf:protoc:${protoc.version}:exe:${os.detected.classifier}</protocArtifact>
-                    <pluginId>grpc-java</pluginId>
-                    <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>compile</goal>
-                            <goal>compile-custom</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <!-- Maven compiler plugin -->
+            <!-- Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -151,27 +136,141 @@
                 <configuration>
                     <source>17</source>
                     <target>17</target>
+                    <parameters>true</parameters>
                     <excludes>
-                        <!-- Exclude gRPC server class -->
                         <exclude>**/VectorialServer.java</exclude>
                         <exclude>**/VectorialClient.java</exclude>
+                        <exclude>**/VectorialServiceImpl.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
 
-            <!-- Spring Boot Maven plugin - handles repackaging and creates executable JAR -->
+            <!-- Shade plugin for AWS Lambda - packages all dependencies in a flat structure -->
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>${spring.boot.version}</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
                 <configuration>
-                    <mainClass>${main.class}</mainClass>
+                    <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <minimizeJar>true</minimizeJar>
+                    <transformers>
+                        <!-- Aggregate Spring Boot configuration files -->
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/spring.handlers</resource>
+                        </transformer>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/spring.schemas</resource>
+                        </transformer>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/spring.factories</resource>
+                        </transformer>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</resource>
+                        </transformer>
+                        <!-- Preserve service provider interfaces -->
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                    </transformers>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <!-- Exclude signature files that cause issues -->
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                                <!-- Exclude our gRPC service implementation (not Pinecone's gRPC client!) -->
+                                <exclude>com/simpla/vectorial/proto/**</exclude>
+                                <!-- Exclude documentation and sources -->
+                                <exclude>META-INF/maven/**</exclude>
+                                <exclude>META-INF/LICENSE*</exclude>
+                                <exclude>META-INF/NOTICE*</exclude>
+                                <exclude>META-INF/DEPENDENCIES</exclude>
+                                <!-- Exclude Lucene entirely -->
+                                <exclude>org/apache/lucene/**</exclude>
+                                <!-- Exclude OpenSearch server components not needed for client -->
+                                <exclude>org/opensearch/bootstrap/**</exclude>
+                                <exclude>org/opensearch/cli/**</exclude>
+                                <exclude>org/opensearch/node/**</exclude>
+                                <exclude>org/opensearch/plugins/**</exclude>
+                                <exclude>org/opensearch/painless/**</exclude>
+                                <exclude>org/opensearch/script/**</exclude>
+                                <exclude>org/opensearch/snapshots/**</exclude>
+                                <exclude>org/opensearch/repositories/**</exclude>
+                                <!-- Exclude some Netty codecs not used -->
+                                <exclude>io/netty/handler/codec/mqtt/**</exclude>
+                                <exclude>io/netty/handler/codec/stomp/**</exclude>
+                            </excludes>
+                        </filter>
+                        <!-- Keep Spring Boot classes that might be removed by minimization -->
+                        <filter>
+                            <artifact>org.springframework.boot:*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
+                        <!-- Keep Spring Framework classes -->
+                        <filter>
+                            <artifact>org.springframework:*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
+                        <!-- Keep Spring Cloud Function classes -->
+                        <filter>
+                            <artifact>org.springframework.cloud:*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
+                        <!-- Keep AWS Lambda classes -->
+                        <filter>
+                            <artifact>com.amazonaws.serverless:*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
+                        <filter>
+                            <artifact>com.amazonaws:aws-lambda-java-*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
+                        <!-- Keep Jackson classes for JSON -->
+                        <filter>
+                            <artifact>com.fasterxml.jackson.*:*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
+                        <!-- Keep OpenSearch and Pinecone classes -->
+                        <filter>
+                            <artifact>org.opensearch.client:*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
+                        <filter>
+                            <artifact>io.pinecone:*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
+                    </filters>
                 </configuration>
                 <executions>
                     <execution>
+                        <phase>package</phase>
                         <goals>
-                            <goal>repackage</goal>
+                            <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <artifactSet>
+                                <excludes>
+                                    <!-- Exclude Tomcat since Lambda provides its own runtime -->
+                                    <exclude>org.apache.tomcat.embed:*</exclude>
+                                </excludes>
+                            </artifactSet>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

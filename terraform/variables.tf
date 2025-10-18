@@ -144,3 +144,41 @@ variable "postgres_password" {
   type        = string
   sensitive   = true
 }
+
+# Vector Store Configuration Variables
+variable "vector_store_type" {
+  description = "Type of vector store to use (pinecone or opensearch)"
+  type        = string
+  default     = "pinecone"
+}
+
+variable "pinecone_api_key" {
+  description = "Pinecone API key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "pinecone_index" {
+  description = "Pinecone index name"
+  type        = string
+  default     = "simpla-vectors"
+}
+
+variable "opensearch_host" {
+  description = "OpenSearch host URL"
+  type        = string
+  default     = ""
+}
+
+variable "opensearch_port" {
+  description = "OpenSearch port"
+  type        = string
+  default     = "443"
+}
+
+variable "opensearch_index" {
+  description = "OpenSearch index name"
+  type        = string
+  default     = "simpla-vectors"
+}

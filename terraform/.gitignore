@@ -5,8 +5,8 @@
 .terraform.lock.hcl
 
 # Lambda artifacts
-lambda/lambda-artifacts/*.jar
-lambda/lambda-artifacts/*.zip
+/lambda-artifacts/*.jar
+/lambda-artifacts/*.zip
 
 # Environment variables (sensitive data)
 .env
