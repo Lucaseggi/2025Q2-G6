@@ -241,10 +241,14 @@ services:
       - rag-network
 
   relational-guard:
-    build: ./06-relational-guard
+    build:
+      context: ./06-relational-guard
+      args:
+        MODE: api  # Options: grpc or api
     container_name: relational-guard
     ports:
       - "50051:50051"
+      - "8090:8090"
     env_file:
       - ./06-relational-guard/.env
     depends_on:
@@ -255,10 +259,14 @@ services:
       - rag-network
 
   vectorial-guard:
-    build: ./07-vectorial-guard
+    build:
+      context: ./07-vectorial-guard
+      args:
+        MODE: api  # Options: grpc or api
     container_name: vectorial-guard
     ports:
       - "50052:50052"
+      - "8080:8080"
     env_file:
       - ./07-vectorial-guard/.env
     depends_on:
