@@ -140,7 +140,7 @@ public class RelationalClient {
 
             // Test 1: ReconstructNorm by infoleg_id
             System.out.println("=== Test 1: ReconstructNorm by infoleg_id ===");
-            client.reconstructNorm(183532);
+            client.reconstructNorm(183508);
 
             // Test 2: ReconstructNormById
             System.out.println("\n=== Test 2: ReconstructNorm by database ID ===");
