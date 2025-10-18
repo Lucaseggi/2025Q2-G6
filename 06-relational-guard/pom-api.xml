@@ -14,9 +14,6 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <grpc.version>1.58.0</grpc.version>
-        <protobuf.version>3.24.4</protobuf.version>
-        <protoc.version>3.24.4</protoc.version>
         <spring.boot.version>3.2.0</spring.boot.version>
         <main.class>com.simpla.relational.RelationalApplication</main.class>
     </properties>
@@ -34,43 +31,33 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Spring Boot dependencies -->
+        <!-- Spring Boot core -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-tomcat</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
-        <!-- gRPC dependencies (still needed for proto classes) -->
+        <!-- Minimal logging -->
         <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-netty-shaded</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-protobuf</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-stub</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-services</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-
-        <!-- Protocol Buffers -->
-        <dependency>
-            <groupId>com.google.protobuf</groupId>
-            <artifactId>protobuf-java</artifactId>
-            <version>${protobuf.version}</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
         </dependency>
 
         <!-- PostgreSQL JDBC Driver -->
@@ -87,52 +74,45 @@
             <version>5.0.1</version>
         </dependency>
 
-        <!-- Jackson for JSON processing - Let Spring Boot manage versions -->
+        <!-- Jackson for JSON -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
-        <!-- Annotation for Java 9+ -->
+        <!-- Annotations -->
         <dependency>
             <groupId>org.apache.tomcat</groupId>
             <artifactId>annotations-api</artifactId>
             <version>6.0.53</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- AWS Lambda core dependencies -->
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-core</artifactId>
+            <version>1.2.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-events</artifactId>
+            <version>3.11.3</version>
+        </dependency>
+
+        <!-- AWS Serverless Java Container for Spring Boot -->
+        <dependency>
+            <groupId>com.amazonaws.serverless</groupId>
+            <artifactId>aws-serverless-java-container-springboot3</artifactId>
+            <version>2.0.1</version>
+        </dependency>
     </dependencies>
 
     <build>
-        <extensions>
-            <extension>
-                <groupId>kr.motd.maven</groupId>
-                <artifactId>os-maven-plugin</artifactId>
-                <version>1.7.1</version>
-            </extension>
-        </extensions>
-
+        <finalName>relational-guard-${project.version}</finalName>
         <plugins>
-            <!-- Protobuf plugin for generating Java classes -->
-            <plugin>
-                <groupId>org.xolstice.maven.plugins</groupId>
-                <artifactId>protobuf-maven-plugin</artifactId>
-                <version>0.6.1</version>
-                <configuration>
-                    <protocArtifact>com.google.protobuf:protoc:${protoc.version}:exe:${os.detected.classifier}</protocArtifact>
-                    <pluginId>grpc-java</pluginId>
-                    <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>compile</goal>
-                            <goal>compile-custom</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <!-- Maven compiler plugin -->
+            <!-- Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -142,27 +122,67 @@
                     <target>17</target>
                     <parameters>true</parameters>
                     <excludes>
-                        <!-- Exclude gRPC server class -->
                         <exclude>**/RelationalServer.java</exclude>
                         <exclude>**/RelationalClient.java</exclude>
+                        <exclude>**/RelationalServiceImpl.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
 
-            <!-- Spring Boot Maven plugin - handles repackaging and creates executable JAR -->
+            <!-- Shade plugin for AWS Lambda - packages all dependencies in a flat structure -->
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>${spring.boot.version}</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
                 <configuration>
-                    <mainClass>${main.class}</mainClass>
-                    <layout>JAR</layout>
+                    <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <transformers>
+                        <!-- Aggregate Spring Boot configuration files -->
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/spring.handlers</resource>
+                        </transformer>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/spring.schemas</resource>
+                        </transformer>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/spring.factories</resource>
+                        </transformer>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</resource>
+                        </transformer>
+                        <!-- Preserve service provider interfaces -->
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                    </transformers>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <!-- Exclude signature files that cause issues -->
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                                <!-- Exclude gRPC/protobuf (not needed for API Lambda) -->
+                                <exclude>io/grpc/**</exclude>
+                                <exclude>com/google/protobuf/**</exclude>
+                                <exclude>com/simpla/relational/proto/**</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
                 </configuration>
                 <executions>
                     <execution>
+                        <phase>package</phase>
                         <goals>
-                            <goal>repackage</goal>
+                            <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <artifactSet>
+                                <excludes>
+                                    <!-- Exclude Tomcat since Lambda provides its own runtime -->
+                                    <exclude>org.apache.tomcat.embed:*</exclude>
+                                </excludes>
+                            </artifactSet>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
