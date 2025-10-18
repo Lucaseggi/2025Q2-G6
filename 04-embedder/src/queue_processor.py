@@ -8,7 +8,7 @@ from datetime import datetime
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../shared'))
-from rabbitmq_client import RabbitMQClient
+from sqs_client import SQSClient
 from models import ProcessedData
 from structured_logger import StructuredLogger, LogStage
 
@@ -30,7 +30,16 @@ class QueueProcessor:
             embedder_service: The embedder service implementation
         """
         self.embedder_service = embedder_service
-        self.queue_client = RabbitMQClient()
+
+        # Set SQS environment variables from config
+        from config.settings import get_settings
+        settings = get_settings()
+        os.environ['SQS_ENDPOINT'] = settings.sqs.endpoint
+        os.environ['AWS_DEFAULT_REGION'] = settings.sqs.region
+        os.environ['EMBEDDING_QUEUE_URL'] = f"{settings.sqs.endpoint}/000000000000/{settings.sqs.queues.input}"
+        os.environ['INSERTING_QUEUE_URL'] = f"{settings.sqs.endpoint}/000000000000/{settings.sqs.queues.output}"
+
+        self.queue_client = SQSClient()
         self.stats = {
             'total_processed': 0,
             'successful': 0,

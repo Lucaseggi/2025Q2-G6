@@ -7,7 +7,6 @@ from typing import Tuple
 # Add shared modules to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../shared'))
 from models import ProcessedData, ScrapingData, ScraperMetadata
-from rabbitmq_client import RabbitMQClient
 from structured_logger import StructuredLogger, LogStage
 
 from ..interfaces.scraper_interface import ScraperInterface

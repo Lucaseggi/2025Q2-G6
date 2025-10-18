@@ -15,13 +15,11 @@ class ServiceConfig(BaseModel):
     debug: bool = False
 
 
-class RabbitMQConfig(BaseModel):
-    """RabbitMQ configuration"""
-    host: str
-    port: int = Field(ge=1, le=65535)
-    user: str
-    vhost: str = "/"
-    password: str  # Will be set from environment
+class SQSConfig(BaseModel):
+    """SQS configuration"""
+    endpoint: Optional[str] = None
+    region: str = "us-east-1"
+    queues: Dict[str, str]
 
 
 class S3Config(BaseModel):
@@ -61,7 +59,7 @@ class Settings(BaseSettings):
 
     # Structured configuration
     service: ServiceConfig
-    rabbitmq: RabbitMQConfig
+    sqs: SQSConfig
     s3: S3Config
     infoleg_api: InfolegApiConfig
 
@@ -87,11 +85,6 @@ class Settings(BaseSettings):
                     values[key] = value
 
         # Add environment variables for nested configs
-        if 'rabbitmq' in values and isinstance(values['rabbitmq'], dict):
-            rabbitmq_password = os.getenv('RABBITMQ_PASSWORD')
-            if rabbitmq_password:
-                values['rabbitmq']['password'] = rabbitmq_password
-
         if 's3' in values and isinstance(values['s3'], dict):
             aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
             aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')

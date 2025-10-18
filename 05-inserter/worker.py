@@ -4,7 +4,7 @@ import sys
 import time
 from datetime import datetime
 
-from shared.rabbitmq_client import RabbitMQClient
+from shared.sqs_client import SQSClient
 from shared.models import ProcessedData
 from shared.structured_logger import StructuredLogger, LogStage
 
@@ -128,7 +128,11 @@ def transform_to_norma_format(message_body):
         return message_body  # Return original if transformation fails
 
 def create_queue_client():
-    return RabbitMQClient()
+    # Set SQS environment variables
+    os.environ['SQS_ENDPOINT'] = os.getenv('SQS_ENDPOINT', 'http://localstack:4566')
+    os.environ['AWS_DEFAULT_REGION'] = os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
+    os.environ['INSERTING_QUEUE_URL'] = f"{os.environ['SQS_ENDPOINT']}/000000000000/inserting"
+    return SQSClient()
 
 def main():
     logger.info("Inserter MS started - listening for messages", stage=LogStage.STARTUP)

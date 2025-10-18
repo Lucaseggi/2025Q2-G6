@@ -1,44 +1,26 @@
 services:
   localstack:
-    image: localstack/localstack:latest
+    build:
+      context: ./00-localstack
+      dockerfile: Dockerfile
     container_name: localstack
     ports:
       - "4566:4566"  # Main LocalStack port
     environment:
-      - SERVICES=s3,ssm  # S3 for cache, SSM for secrets
+      - SERVICES=s3,sqs,ssm  # S3 for cache, SQS for queues, SSM for secrets
       - DEBUG=1
       - DATA_DIR=/var/lib/localstack
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - localstack-data:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./00-localstack/init-aws-resources.sh:/etc/localstack/init/ready.d/init-aws-resources.sh
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
-      interval: 10s
+      test: ["CMD", "test", "-f", "/tmp/localstack-initialized.txt"]
+      interval: 5s
       timeout: 5s
-      retries: 3
-      start_period: 10s
-    networks:
-      - rag-network
-
-  rabbitmq:
-    build:
-      context: ./00-queue
-      dockerfile: Dockerfile
-    container_name: rabbitmq-server
-    ports:
-      - "5672:5672"     # AMQP port
-      - "15672:15672"   # Management UI
-    env_file:
-      - ./00-queue/.env
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-      - rabbitmq-logs:/var/log/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      retries: 12
+      start_period: 30s
     networks:
       - rag-network
 
@@ -107,8 +89,6 @@ services:
     depends_on:
       localstack:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
       opensearch:
         condition: service_healthy
     restart: unless-stopped
@@ -125,8 +105,6 @@ services:
     depends_on:
       localstack:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - rag-network
@@ -138,8 +116,6 @@ services:
       - ./02-purifier/.env
     depends_on:
       localstack:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -156,8 +132,6 @@ services:
     depends_on:
       localstack:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - rag-network
@@ -169,8 +143,6 @@ services:
       - ./03-processor/.env
     depends_on:
       localstack:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -185,7 +157,7 @@ services:
     env_file:
       - ./04-embedder/.env
     depends_on:
-      rabbitmq:
+      localstack:
         condition: service_healthy
       opensearch:
         condition: service_healthy
@@ -199,7 +171,7 @@ services:
     env_file:
       - ./04-embedder/.env
     depends_on:
-      rabbitmq:
+      localstack:
         condition: service_healthy
       opensearch:
         condition: service_healthy
@@ -212,7 +184,7 @@ services:
     env_file:
       - ./05-inserter/.env
     depends_on:
-      rabbitmq:
+      localstack:
         condition: service_healthy
       opensearch:
         condition: service_healthy
@@ -292,10 +264,6 @@ services:
 
 volumes:
   localstack-data:
-    driver: local
-  rabbitmq-data:
-    driver: local
-  rabbitmq-logs:
     driver: local
   opensearch-data:
     driver: local

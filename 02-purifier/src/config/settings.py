@@ -14,13 +14,10 @@ class ServiceConfig(BaseModel):
     debug: bool = False
 
 
-class RabbitMQConfig(BaseModel):
-    """RabbitMQ configuration"""
-    host: str
-    port: int = Field(ge=1, le=65535)
-    user: str
-    vhost: str = "/"
-    password: str
+class SQSConfig(BaseModel):
+    """SQS configuration"""
+    endpoint: Optional[str] = None
+    region: str = "us-east-1"
     queues: Dict[str, str]
 
 
@@ -55,7 +52,7 @@ class Settings(BaseSettings):
     """Application configuration settings with JSON + env support"""
 
     service: ServiceConfig
-    rabbitmq: RabbitMQConfig
+    sqs: SQSConfig
     s3: S3Config
     gemini: GeminiConfig
     processing: ProcessingConfig
@@ -81,10 +78,6 @@ class Settings(BaseSettings):
                     values[key] = value
 
         # Add environment variables
-        if 'rabbitmq' in values and isinstance(values['rabbitmq'], dict):
-            rabbitmq_password = os.getenv('RABBITMQ_PASSWORD', 'admin123')
-            values['rabbitmq']['password'] = rabbitmq_password
-
         if 's3' in values and isinstance(values['s3'], dict):
             aws_access_key = os.getenv('AWS_ACCESS_KEY_ID', 'test')
             aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY', 'test')

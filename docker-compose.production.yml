@@ -140,16 +140,6 @@ services:
           cpus: '1.0'
           memory: 2G
 
-  rabbitmq:
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
-
   localstack:
     deploy:
       resources:

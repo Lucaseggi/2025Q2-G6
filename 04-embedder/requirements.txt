@@ -8,8 +8,8 @@ pydantic==2.5.0
 # Google Generative AI
 google-genai
 
-# Message queue
-pika==1.3.2
+# Message queue and AWS services
+boto3==1.34.0
 
 # Utilities
 python-dotenv==1.0.0

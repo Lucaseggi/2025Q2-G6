@@ -15,17 +15,15 @@ class ServiceConfig(BaseModel):
     debug: bool
 
 
-class RabbitMQQueues(BaseModel):
+class SQSQueues(BaseModel):
     input: str
     output: str
 
 
-class RabbitMQConfig(BaseModel):
-    host: str
-    port: int
-    user: str
-    vhost: str
-    queues: RabbitMQQueues
+class SQSConfig(BaseModel):
+    endpoint: str
+    region: str
+    queues: SQSQueues
 
 
 class EmbeddingConfig(BaseModel):
@@ -37,7 +35,7 @@ class EmbeddingConfig(BaseModel):
 
 class Settings(BaseModel):
     service: ServiceConfig
-    rabbitmq: RabbitMQConfig
+    sqs: SQSConfig
     embedding: EmbeddingConfig
 
 

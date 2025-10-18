@@ -6,7 +6,7 @@ import os
 from typing import Tuple, Optional
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../../shared'))
-from rabbitmq_client import RabbitMQClient
+from sqs_client import SQSClient
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 from config import ProcessorSettings
@@ -23,7 +23,13 @@ class CacheReplayService:
         """Initialize cache replay service"""
         self.storage = storage_service
         self.settings = settings
-        self.queue_client = RabbitMQClient()
+
+        # Set SQS environment variables
+        os.environ['SQS_ENDPOINT'] = self.settings.sqs.endpoint
+        os.environ['AWS_DEFAULT_REGION'] = self.settings.sqs.region
+        os.environ['EMBEDDING_QUEUE_URL'] = f"{self.settings.sqs.endpoint}/000000000000/{self.settings.sqs.queues['output']}"
+
+        self.queue_client = SQSClient()
 
     def _get_cache_key(self, norm_id: int) -> str:
         """Generate cache key for a processed norm"""
@@ -43,7 +49,7 @@ class CacheReplayService:
 
         # Send to embedding queue
         success = self.queue_client.send_message(
-            self.settings.rabbitmq.queues['output'],
+            self.settings.sqs.queues['output'],
             cached_data
         )
 

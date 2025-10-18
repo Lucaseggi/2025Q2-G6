@@ -5,11 +5,9 @@
     "port": 8001,
     "debug": false
   },
-  "rabbitmq": {
-    "host": "rabbitmq",
-    "port": 5672,
-    "user": "admin",
-    "vhost": "/",
+  "sqs": {
+    "endpoint": "http://localstack:4566",
+    "region": "us-east-1",
     "queues": {
       "input": "embedding",
       "output": "inserting"

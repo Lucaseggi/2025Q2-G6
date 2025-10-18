@@ -72,7 +72,7 @@ class PurifierWorker:
             try:
                 # Receive message from scraping queue
                 message = self.queue.receive_message(
-                    self.settings.rabbitmq.queues['input'],
+                    self.settings.sqs.queues['input'],
                     timeout=20
                 )
 

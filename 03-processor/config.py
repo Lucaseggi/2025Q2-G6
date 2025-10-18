@@ -16,13 +16,10 @@ class ServiceConfig:
 
 
 @dataclass
-class RabbitMQConfig:
-    """RabbitMQ configuration"""
-    host: str
-    port: int
-    user: str
-    password: str  # From environment
-    vhost: str
+class SQSConfig:
+    """SQS configuration"""
+    endpoint: str
+    region: str
     queues: Dict[str, str]
 
 
@@ -85,15 +82,12 @@ class ProcessorSettings:
             debug=service_data.get("debug", False)
         )
 
-        # Initialize RabbitMQ config (password from environment)
-        rabbitmq_data = config_data["rabbitmq"]
-        self.rabbitmq = RabbitMQConfig(
-            host=rabbitmq_data["host"],
-            port=rabbitmq_data["port"],
-            user=rabbitmq_data["user"],
-            password=os.getenv("RABBITMQ_PASSWORD", "admin123"),
-            vhost=rabbitmq_data["vhost"],
-            queues=rabbitmq_data["queues"]
+        # Initialize SQS config
+        sqs_data = config_data["sqs"]
+        self.sqs = SQSConfig(
+            endpoint=sqs_data["endpoint"],
+            region=sqs_data["region"],
+            queues=sqs_data["queues"]
         )
 
         # Initialize S3 config

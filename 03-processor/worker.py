@@ -7,7 +7,7 @@ from typing import Optional
 
 # Add shared modules to path
 sys.path.append('/app/shared')
-from rabbitmq_client import RabbitMQClient
+from sqs_client import SQSClient
 from models import ProcessedData
 from structured_logger import StructuredLogger, LogStage
 from failed_processing_logger import FailedProcessingLogger
@@ -36,7 +36,13 @@ class DocumentProcessor:
         self.config = ProcessorSettings()
 
         # Initialize shared components
-        self.queue_client = RabbitMQClient()
+        # Set SQS environment variables
+        os.environ['SQS_ENDPOINT'] = self.config.sqs.endpoint
+        os.environ['AWS_DEFAULT_REGION'] = self.config.sqs.region
+        os.environ['PROCESSING_QUEUE_URL'] = f"{self.config.sqs.endpoint}/000000000000/{self.config.sqs.queues['input']}"
+        os.environ['EMBEDDING_QUEUE_URL'] = f"{self.config.sqs.endpoint}/000000000000/{self.config.sqs.queues['output']}"
+
+        self.queue_client = SQSClient()
         self.failed_logger = FailedProcessingLogger(service_name="processor")
 
         # Initialize services with dependency injection

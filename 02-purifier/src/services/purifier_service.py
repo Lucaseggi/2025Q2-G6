@@ -146,7 +146,7 @@ class PurifierService(PurifierInterface):
 
                 # Send to processing queue
                 success = self.queue.send_message(
-                    self.llm_service.settings.rabbitmq.queues['output'],
+                    self.llm_service.settings.sqs.queues['output'],
                     output_data
                 )
 
@@ -243,7 +243,7 @@ class PurifierService(PurifierInterface):
 
             # Step 5: Send to purification queue
             success = self.queue.send_message(
-                self.llm_service.settings.rabbitmq.queues['output'],
+                self.llm_service.settings.sqs.queues['output'],
                 output_data
             )
 
@@ -296,7 +296,7 @@ class PurifierService(PurifierInterface):
 
         # Send to purification queue
         success = self.queue.send_message(
-            self.llm_service.settings.rabbitmq.queues['output'],
+            self.llm_service.settings.sqs.queues['output'],
             actual_data
         )
 
