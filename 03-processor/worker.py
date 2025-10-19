@@ -35,14 +35,13 @@ class DocumentProcessor:
         # Load configuration
         self.config = get_settings()
 
-        # Initialize shared components
-        # Set SQS environment variables
-        os.environ['SQS_ENDPOINT'] = self.config.sqs.endpoint
-        os.environ['AWS_DEFAULT_REGION'] = self.config.sqs.region
-        os.environ['PROCESSING_QUEUE_URL'] = f"{self.config.sqs.endpoint}/000000000000/{self.config.sqs.queues['input']}"
-        os.environ['EMBEDDING_QUEUE_URL'] = f"{self.config.sqs.endpoint}/000000000000/{self.config.sqs.queues['output']}"
-
-        self.queue_client = SQSClient()
+        # Initialize shared components with explicit Settings configuration
+        self.queue_client = SQSClient(
+            endpoint_url=self.config.sqs.endpoint,
+            region_name=self.config.sqs.region,
+            aws_access_key_id=self.config.aws.access_key_id,
+            aws_secret_access_key=self.config.aws.secret_access_key
+        )
         self.failed_logger = FailedProcessingLogger(service_name="processor")
 
         # Initialize services with dependency injection
@@ -51,13 +50,7 @@ class DocumentProcessor:
         self.verification_service = VerificationService(
             similarity_threshold=getattr(self.config.gemini, 'diff_threshold', 0.15)
         )
-        self.storage_service = StorageService(
-            bucket_name=self.config.s3.bucket_name,
-            endpoint_url=self.config.s3.endpoint,
-            access_key_id=self.config.aws.access_key_id,
-            secret_access_key=self.config.aws.secret_access_key,
-            region=self.config.aws.region
-        )
+        self.storage_service = StorageService(self.config)
 
         # Initialize main parsing service
         self.parsing_service = ParsingService(

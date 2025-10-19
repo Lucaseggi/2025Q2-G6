@@ -287,7 +287,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         f"Lambda invoked - trigger detection",
         stage=LogStage.STARTUP,
         event_keys=list(event.keys()),
-        request_id=context.request_id if context else None
+        request_id=context.aws_request_id if context else None
     )
 
     # Route 1: SQS Trigger

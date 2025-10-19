@@ -64,7 +64,10 @@ class LLMService(LLMServiceInterface):
     def _load_prompt(self, prompt_name: str) -> str:
         """Helper method to load prompt from file"""
         try:
-            with open(f'/app/prompts/{prompt_name}.txt', 'r', encoding='utf-8') as f:
+            # Use working directory for prompts (Lambda uses /var/task, Docker uses /app)
+            prompts_dir = os.path.join(os.getcwd(), 'prompts')
+            prompt_path = os.path.join(prompts_dir, f'{prompt_name}.txt')
+            with open(prompt_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
             logger.error(f"Failed to load {prompt_name} prompt: {e}")

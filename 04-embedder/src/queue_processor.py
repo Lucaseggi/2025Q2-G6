@@ -31,15 +31,16 @@ class QueueProcessor:
         """
         self.embedder_service = embedder_service
 
-        # Set SQS environment variables from config
+        # Initialize SQS client with explicit Settings configuration
         from config.settings import get_settings
         settings = get_settings()
-        os.environ['SQS_ENDPOINT'] = settings.sqs.endpoint
-        os.environ['AWS_DEFAULT_REGION'] = settings.sqs.region
-        os.environ['EMBEDDING_QUEUE_URL'] = f"{settings.sqs.endpoint}/000000000000/{settings.sqs.queues.input}"
-        os.environ['INSERTING_QUEUE_URL'] = f"{settings.sqs.endpoint}/000000000000/{settings.sqs.queues.output}"
 
-        self.queue_client = SQSClient()
+        self.queue_client = SQSClient(
+            endpoint_url=settings.sqs.endpoint,
+            region_name=settings.sqs.region,
+            aws_access_key_id=settings.aws.access_key_id,
+            aws_secret_access_key=settings.aws.secret_access_key
+        )
         self.stats = {
             'total_processed': 0,
             'successful': 0,

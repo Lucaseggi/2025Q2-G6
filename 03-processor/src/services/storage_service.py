@@ -10,6 +10,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from interfaces.storage_interface import StorageInterface
+from config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,20 +18,26 @@ logger = logging.getLogger(__name__)
 class StorageService(StorageInterface):
     """S3-based storage service implementation"""
 
-    def __init__(self, bucket_name: str, endpoint_url: str, access_key_id: str,
-                 secret_access_key: str, region: str = "us-east-1"):
+    def __init__(self, settings: Settings):
         """Initialize storage service with S3 backend"""
-        self.bucket_name = bucket_name
-        self.s3_endpoint = endpoint_url
+        self.bucket_name = settings.s3.bucket_name
+        self.s3_endpoint = settings.s3.endpoint
 
-        # Configure S3 client
-        self.s3_client = boto3.client(
-            's3',
-            endpoint_url=endpoint_url,
-            aws_access_key_id=access_key_id,
-            aws_secret_access_key=secret_access_key,
-            region_name=region
-        )
+        # Build S3 client configuration from settings
+        client_config = {
+            'region_name': settings.aws.region
+        }
+
+        # Only add endpoint if provided (LocalStack)
+        if self.s3_endpoint:
+            client_config['endpoint_url'] = self.s3_endpoint
+
+        # Only add credentials if provided (LocalStack); Lambda uses IAM role
+        if settings.aws.access_key_id and settings.aws.secret_access_key:
+            client_config['aws_access_key_id'] = settings.aws.access_key_id
+            client_config['aws_secret_access_key'] = settings.aws.secret_access_key
+
+        self.s3_client = boto3.client('s3', **client_config)
 
         # Initialize bucket
         self._ensure_bucket_exists()

@@ -24,7 +24,7 @@ from structured_logger import StructuredLogger, LogStage
 # Add local src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from src.dependencies import get_parsing_service, get_cache_replay_service
+from src.dependencies import get_parsing_service, get_cache_replay_service, get_queue_service, get_processor_settings
 
 # Initialize logger
 logger = StructuredLogger("processor", "lambda")
@@ -32,11 +32,17 @@ logger = StructuredLogger("processor", "lambda")
 # Initialize services at cold start (reused across warm invocations)
 _parsing_service = None
 _cache_replay_service = None
+_queue_service = None
+_settings = None
 
 
 def get_services():
     """Initialize services on cold start, reuse on warm invocations"""
-    global _parsing_service, _cache_replay_service
+    global _parsing_service, _cache_replay_service, _queue_service, _settings
+
+    if _settings is None:
+        logger.info("Cold start: Loading settings", stage=LogStage.STARTUP)
+        _settings = get_processor_settings()
 
     if _parsing_service is None:
         logger.info("Cold start: Initializing parsing service", stage=LogStage.STARTUP)
@@ -46,7 +52,11 @@ def get_services():
         logger.info("Cold start: Initializing cache replay service", stage=LogStage.STARTUP)
         _cache_replay_service = get_cache_replay_service()
 
-    return _parsing_service, _cache_replay_service
+    if _queue_service is None:
+        logger.info("Cold start: Initializing queue service", stage=LogStage.STARTUP)
+        _queue_service = get_queue_service()
+
+    return _parsing_service, _cache_replay_service, _queue_service, _settings
 
 
 def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -66,7 +76,7 @@ def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Processing summary (not HTTP response)
     """
-    parsing_service, _ = get_services()
+    parsing_service, cache_replay_service, queue_service, settings = get_services()
     results = []
 
     for record in event.get('Records', []):
@@ -100,15 +110,35 @@ def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
             processed_data = parsing_service.process_document(input_data)
 
             if processed_data:
-                results.append({
-                    'infoleg_id': infoleg_id,
-                    'status': 'success'
-                })
-                logger.info(
-                    f"Successfully processed document {infoleg_id}",
-                    stage=LogStage.PROCESSING,
-                    infoleg_id=infoleg_id
-                )
+                # Send to embedding queue
+                output_queue = settings.sqs.queues['output']
+                success = queue_service.send_message(output_queue, processed_data.to_dict())
+
+                if success:
+                    logger.log_message_sent(
+                        queue_name=output_queue,
+                        infoleg_id=infoleg_id
+                    )
+                    results.append({
+                        'infoleg_id': infoleg_id,
+                        'status': 'success'
+                    })
+                    logger.info(
+                        f"Successfully processed document {infoleg_id}",
+                        stage=LogStage.PROCESSING,
+                        infoleg_id=infoleg_id
+                    )
+                else:
+                    results.append({
+                        'infoleg_id': infoleg_id,
+                        'status': 'failed',
+                        'error': 'Failed to send to embedding queue'
+                    })
+                    logger.error(
+                        f"Failed to send document {infoleg_id} to embedding queue",
+                        stage=LogStage.QUEUE_ERROR,
+                        infoleg_id=infoleg_id
+                    )
             else:
                 results.append({
                     'infoleg_id': infoleg_id,
@@ -326,7 +356,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         f"Lambda invoked - trigger detection",
         stage=LogStage.STARTUP,
         event_keys=list(event.keys()),
-        request_id=context.request_id if context else None
+        request_id=context.aws_request_id if context else None
     )
 
     # Route 1: SQS Trigger

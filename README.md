@@ -4,6 +4,9 @@ A microservices-based RAG (Retrieval-Augmented Generation) system for processing
 
 ## Cloud Deploy
 
+aws logs tail /aws/lambda/simpla-inserter --since 5m --format short --region us-east-1 | tail -30
+aws lambda invoke --function-name simpla-scraper --payload fileb:///tmp/scrape-183532.json --region us-east-1 /tmp/scraper-response3.json
+
 ### Prerequisites
 - **Terraform installed**: Download from [terraform.io](https://www.terraform.io/downloads)
 - **AWS CLI installed**: Follow the installation for your OS following [these instructions](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
@@ -101,21 +104,6 @@ Run only the processing pipeline without the storage guards. Useful for testing 
 
 **Background mode (detached):**
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.production.yml up --build -d \
-  localstack \
-  opensearch \
-  scraper \
-  purifier-worker \
-  purifier-api \
-  processor-worker \
-  processor-api \
-  embedder-worker \
-  embedder-api \
-  inserter
-```
-
-**With real-time logs:**
-```bash
 docker compose -f docker-compose.yml -f docker-compose.production.yml up --build \
   localstack \
   opensearch \
@@ -126,18 +114,6 @@ docker compose -f docker-compose.yml -f docker-compose.production.yml up --build
   processor-api \
   embedder-worker \
   embedder-api \
-  inserter
-```
-
-**Minimal (workers only, no APIs):**
-```bash
-docker compose -f docker-compose.yml -f docker-compose.production.yml up --build -d \
-  localstack \
-  opensearch \
-  scraper \
-  purifier-worker \
-  processor-worker \
-  embedder-worker \
   inserter
 ```
 

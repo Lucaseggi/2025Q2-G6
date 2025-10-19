@@ -143,11 +143,19 @@ def transform_to_norma_format(message_body):
         return message_body  # Return original if transformation fails
 
 def create_queue_client():
-    # Set SQS environment variables
-    os.environ['SQS_ENDPOINT'] = os.getenv('SQS_ENDPOINT', 'http://localstack:4566')
-    os.environ['AWS_DEFAULT_REGION'] = os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
-    os.environ['INSERTING_QUEUE_URL'] = f"{os.environ['SQS_ENDPOINT']}/000000000000/inserting"
-    return SQSClient()
+    """Create SQS client with explicit configuration from environment"""
+    # Get configuration from environment (LocalStack setup)
+    endpoint_url = os.getenv('SQS_ENDPOINT', 'http://localstack:4566')
+    region_name = os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
+    aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID', 'test')
+    aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY', 'test')
+
+    return SQSClient(
+        endpoint_url=endpoint_url,
+        region_name=region_name,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key
+    )
 
 def main():
     logger.info("Inserter MS started - listening for messages", stage=LogStage.STARTUP)

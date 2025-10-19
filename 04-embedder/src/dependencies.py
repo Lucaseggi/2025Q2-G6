@@ -3,11 +3,13 @@
 import os
 from functools import lru_cache
 
-from interfaces.norm_embedder_service_interface import NormEmbedderServiceInterface
-from interfaces.embedder_service_interface import EmbedderServiceInterface
-from services.norm_embedder_service import GeminiNormEmbedderService
-from services.embedder_service import EmbedderService
-from config.settings import get_settings
+from src.interfaces.norm_embedder_service_interface import NormEmbedderServiceInterface
+from src.interfaces.embedder_service_interface import EmbedderServiceInterface
+from src.interfaces.queue_interface import QueueInterface
+from src.services.norm_embedder_service import GeminiNormEmbedderService
+from src.services.embedder_service import EmbedderService
+from src.services.queue_service import QueueService
+from src.config.settings import get_settings
 
 
 @lru_cache()
@@ -24,6 +26,12 @@ def get_norm_embedder_service() -> NormEmbedderServiceInterface:
         model_name=embedding_config.embedding_model_name,
         output_dimensionality=embedding_config.output_dimensionality
     )
+
+
+def get_queue_service() -> QueueInterface:
+    """Provide queue service instance"""
+    config = get_settings()
+    return QueueService(config)
 
 
 def get_embedder_service() -> EmbedderServiceInterface:

@@ -1,6 +1,7 @@
 import boto3
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 from botocore.exceptions import ClientError
@@ -19,14 +20,21 @@ class CacheService(CacheInterface):
         self.bucket_name = settings.s3.bucket_name
         self.s3_endpoint = settings.s3.endpoint
 
-        # Configure S3 client
-        self.s3_client = boto3.client(
-            's3',
-            endpoint_url=self.s3_endpoint,
-            aws_access_key_id=settings.aws.access_key_id,
-            aws_secret_access_key=settings.aws.secret_access_key,
-            region_name=settings.aws.region
-        )
+        # Build S3 client configuration from settings
+        client_config = {
+            'region_name': settings.aws.region
+        }
+
+        # Only add endpoint if provided (LocalStack)
+        if self.s3_endpoint:
+            client_config['endpoint_url'] = self.s3_endpoint
+
+        # Only add credentials if provided (LocalStack); Lambda uses IAM role
+        if settings.aws.access_key_id and settings.aws.secret_access_key:
+            client_config['aws_access_key_id'] = settings.aws.access_key_id
+            client_config['aws_secret_access_key'] = settings.aws.secret_access_key
+
+        self.s3_client = boto3.client('s3', **client_config)
 
         # Initialize bucket
         self._ensure_bucket_exists()

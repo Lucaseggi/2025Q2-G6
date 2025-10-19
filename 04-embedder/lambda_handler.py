@@ -23,18 +23,25 @@ from structured_logger import StructuredLogger, LogStage
 # Add local src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from dependencies import get_embedder_service
+from src.dependencies import get_embedder_service, get_queue_service
+from src.config.settings import get_settings
 
 # Initialize logger
 logger = StructuredLogger("embedder", "lambda")
 
 # Initialize services at cold start (reused across warm invocations)
 _embedder_service = None
+_queue_service = None
+_settings = None
 
 
 def get_services():
     """Initialize services on cold start, reuse on warm invocations"""
-    global _embedder_service
+    global _embedder_service, _queue_service, _settings
+
+    if _settings is None:
+        logger.info("Cold start: Loading settings", stage=LogStage.STARTUP)
+        _settings = get_settings()
 
     if _embedder_service is None:
         logger.info("Cold start: Initializing embedder service", stage=LogStage.STARTUP)
@@ -46,7 +53,11 @@ def get_services():
 
         logger.info("Embedder service initialized successfully", stage=LogStage.STARTUP)
 
-    return _embedder_service
+    if _queue_service is None:
+        logger.info("Cold start: Initializing queue service", stage=LogStage.STARTUP)
+        _queue_service = get_queue_service()
+
+    return _embedder_service, _queue_service, _settings
 
 
 def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -62,7 +73,7 @@ def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Processing summary
     """
-    embedder_service = get_services()
+    embedder_service, queue_service, settings = get_services()
     results = []
 
     for record in event.get('Records', []):
@@ -96,15 +107,35 @@ def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
             processed_data = embedder_service.process_document(input_data)
 
             if processed_data:
-                results.append({
-                    'norma_id': norma_id,
-                    'status': 'success'
-                })
-                logger.info(
-                    f"Successfully generated embeddings for norm {norma_id}",
-                    stage=LogStage.PROCESSING,
-                    infoleg_id=norma_id
-                )
+                # Send to inserting queue
+                output_queue = settings.sqs.queues.output
+                success = queue_service.send_message(output_queue, processed_data.to_dict())
+
+                if success:
+                    logger.log_message_sent(
+                        queue_name=output_queue,
+                        infoleg_id=norma_id
+                    )
+                    results.append({
+                        'norma_id': norma_id,
+                        'status': 'success'
+                    })
+                    logger.info(
+                        f"Successfully generated embeddings for norm {norma_id}",
+                        stage=LogStage.PROCESSING,
+                        infoleg_id=norma_id
+                    )
+                else:
+                    results.append({
+                        'norma_id': norma_id,
+                        'status': 'failed',
+                        'error': 'Failed to send to inserting queue'
+                    })
+                    logger.error(
+                        f"Failed to send norm {norma_id} to inserting queue",
+                        stage=LogStage.QUEUE_ERROR,
+                        infoleg_id=norma_id
+                    )
             else:
                 results.append({
                     'norma_id': norma_id,
@@ -165,7 +196,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         f"Lambda invoked",
         stage=LogStage.STARTUP,
         event_keys=list(event.keys()),
-        request_id=context.request_id if context else None
+        request_id=context.aws_request_id if context else None
     )
 
     # Validate SQS trigger

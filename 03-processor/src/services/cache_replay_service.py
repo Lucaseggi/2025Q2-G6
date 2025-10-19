@@ -24,10 +24,10 @@ class CacheReplayService:
         self.storage = storage_service
         self.settings = settings
 
-        # Set SQS environment variables
-        os.environ['SQS_ENDPOINT'] = self.settings.sqs.endpoint
+        # Set SQS environment variables for shared SQS client
+        if self.settings.sqs.endpoint:
+            os.environ['SQS_ENDPOINT'] = self.settings.sqs.endpoint
         os.environ['AWS_DEFAULT_REGION'] = self.settings.sqs.region
-        os.environ['EMBEDDING_QUEUE_URL'] = f"{self.settings.sqs.endpoint}/000000000000/{self.settings.sqs.queues['output']}"
 
         self.queue_client = SQSClient()
 

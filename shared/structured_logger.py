@@ -74,11 +74,8 @@ class StructuredLogger:
         self.service_name = service_name
         self.service_type = service_type
 
-        # Setup log directory and file
-        log_file = os.getenv('LOG_FILE', '/app/logs/app.log')
-        log_dir = os.path.dirname(log_file)
-        if log_dir:
-            os.makedirs(log_dir, exist_ok=True)
+        # Detect if running in AWS Lambda
+        is_lambda = os.getenv('AWS_LAMBDA_FUNCTION_NAME') is not None
 
         # Create logger
         self.logger = logging.getLogger(f"{service_name}-{service_type}")
@@ -87,12 +84,22 @@ class StructuredLogger:
         # Remove existing handlers to avoid duplicates
         self.logger.handlers.clear()
 
-        # File handler for structured JSON logs (for sidecar consumption)
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(logging.Formatter('%(message)s'))
+        # In Lambda, only use console handler (stdout -> CloudWatch automatically)
+        # In Docker/local, use both file and console handlers for logging aggregator
+        if not is_lambda:
+            # Setup log directory and file
+            log_file = os.getenv('LOG_FILE', '/app/logs/app.log')
+            log_dir = os.path.dirname(log_file)
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
 
-        # Console handler for human-readable logs (for docker logs command)
+            # File handler for structured JSON logs (for sidecar consumption)
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(logging.INFO)
+            file_handler.setFormatter(logging.Formatter('%(message)s'))
+            self.logger.addHandler(file_handler)
+
+        # Console handler for human-readable logs (docker logs / CloudWatch)
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(
@@ -101,8 +108,6 @@ class StructuredLogger:
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
         )
-
-        self.logger.addHandler(file_handler)
         self.logger.addHandler(console_handler)
 
         # Prevent propagation to root logger

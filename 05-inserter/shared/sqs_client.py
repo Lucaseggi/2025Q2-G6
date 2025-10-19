@@ -1,36 +1,74 @@
 import boto3
 import json
-import os
 from typing import Dict, Any, Optional
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 
 
 class SQSClient:
-    """AWS SQS client for message queue operations"""
+    """
+    AWS SQS client for message queue operations.
 
-    def __init__(self):
-        """Initialize SQS client with LocalStack or AWS configuration"""
-        self.sqs = boto3.client(
-            'sqs',
-            endpoint_url=os.getenv('SQS_ENDPOINT', 'http://localstack:4566'),
-            aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID', 'test'),
-            aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY', 'test'),
-            region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
-        )
+    Configured explicitly by Settings - no environment detection.
+    """
 
-        # Define queue names mapping to URLs
-        # Naming convention: scraper(s) -> purifying, purifier(s) -> processing, processor(s) -> embedding, embedder(s) -> inserting
-        self.queues = {
-            'purifying': os.getenv('PURIFYING_QUEUE_URL'),
-            'processing': os.getenv('PROCESSING_QUEUE_URL'),
-            'embedding': os.getenv('EMBEDDING_QUEUE_URL'),
-            'inserting': os.getenv('INSERTING_QUEUE_URL')
+    def __init__(
+        self,
+        endpoint_url: Optional[str] = None,
+        region_name: str = 'us-east-1',
+        aws_access_key_id: Optional[str] = None,
+        aws_secret_access_key: Optional[str] = None
+    ):
+        """
+        Initialize SQS client with explicit configuration from Settings.
+
+        Args:
+            endpoint_url: SQS endpoint (for LocalStack). None for AWS.
+            region_name: AWS region
+            aws_access_key_id: AWS access key (for LocalStack). None for Lambda IAM role.
+            aws_secret_access_key: AWS secret key (for LocalStack). None for Lambda IAM role.
+        """
+        # Build client configuration
+        client_config = {
+            'region_name': region_name
         }
 
-        logger.debug(f"SQS Client initialized with endpoint: {os.getenv('SQS_ENDPOINT', 'http://localstack:4566')}")
+        # Add endpoint if provided (LocalStack)
+        if endpoint_url:
+            client_config['endpoint_url'] = endpoint_url
+            logger.debug(f"SQS Client initialized with endpoint: {endpoint_url}")
+
+        # Add credentials if provided (LocalStack); omit for Lambda IAM role
+        if aws_access_key_id and aws_secret_access_key:
+            client_config['aws_access_key_id'] = aws_access_key_id
+            client_config['aws_secret_access_key'] = aws_secret_access_key
+            logger.debug("SQS Client initialized with explicit credentials (LocalStack)")
+        else:
+            logger.debug("SQS Client initialized for Lambda (using IAM role)")
+
+        self.sqs = boto3.client('sqs', **client_config)
+
+        # Cache for queue URLs resolved from queue names
+        self._queue_url_cache = {}
+
+    def _get_queue_url(self, queue_name: str) -> Optional[str]:
+        """
+        Get queue URL from queue name using AWS SQS API.
+        Caches results to avoid repeated API calls.
+        """
+        if queue_name in self._queue_url_cache:
+            return self._queue_url_cache[queue_name]
+
+        try:
+            response = self.sqs.get_queue_url(QueueName=queue_name)
+            queue_url = response['QueueUrl']
+            self._queue_url_cache[queue_name] = queue_url
+            logger.debug(f"Resolved queue '{queue_name}' to URL: {queue_url}")
+            return queue_url
+        except Exception as e:
+            logger.error(f"Failed to get queue URL for '{queue_name}': {e}")
+            return None
 
     def send_message(self, queue_name: str, message: Dict[str, Any]) -> bool:
         """
@@ -44,7 +82,7 @@ class SQSClient:
             True if message was sent successfully, False otherwise
         """
         try:
-            queue_url = self.queues.get(queue_name)
+            queue_url = self._get_queue_url(queue_name)
             if not queue_url:
                 logger.error(f"Queue URL not found for queue: {queue_name}")
                 return False
@@ -75,7 +113,7 @@ class SQSClient:
             Message body as dictionary, or None if no message received
         """
         try:
-            queue_url = self.queues.get(queue_name)
+            queue_url = self._get_queue_url(queue_name)
             if not queue_url:
                 logger.error(f"Queue URL not found for queue: {queue_name}")
                 return None

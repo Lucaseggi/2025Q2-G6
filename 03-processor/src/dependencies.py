@@ -7,10 +7,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.config.settings import get_settings
 from src.interfaces.parsing_service_interface import ParsingServiceInterface
+from src.interfaces.queue_interface import QueueInterface
 from src.services.text_processing_service import TextProcessingService
 from src.services.llm_service import LLMService
 from src.services.verification_service import VerificationService
 from src.services.storage_service import StorageService
+from src.services.queue_service import QueueService
 from src.services.parsing_service import ParsingService
 from src.services.cache_replay_service import CacheReplayService
 
@@ -42,13 +44,13 @@ def get_verification_service() -> VerificationService:
 def get_storage_service() -> StorageService:
     """Provide storage service instance"""
     settings = get_processor_settings()
-    return StorageService(
-        bucket_name=settings.s3.bucket_name,
-        endpoint_url=settings.s3.endpoint,
-        access_key_id=settings.aws.access_key_id,
-        secret_access_key=settings.aws.secret_access_key,
-        region=settings.aws.region
-    )
+    return StorageService(settings)
+
+
+def get_queue_service() -> QueueInterface:
+    """Provide queue service instance"""
+    settings = get_processor_settings()
+    return QueueService(settings)
 
 
 def get_parsing_service() -> ParsingServiceInterface:

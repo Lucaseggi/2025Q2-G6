@@ -13,7 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 class QueueService(QueueInterface):
-    """SQS-based queue service implementation"""
+    """
+    SQS-based queue service implementation.
+
+    Receives Settings as injected dependency and configures SQSClient explicitly.
+    No environment variable access.
+    """
 
     def __init__(self, settings: Settings):
         """Initialize queue service with SQS backend"""
@@ -22,20 +27,15 @@ class QueueService(QueueInterface):
 
     @property
     def client(self) -> SQSClient:
-        """Lazy initialization of SQS client"""
+        """Lazy initialization of SQS client with explicit Settings configuration"""
         if self._client is None:
-            # Set environment variables for SQSClient
-            if self.settings.sqs.endpoint:
-                os.environ['SQS_ENDPOINT'] = self.settings.sqs.endpoint
-            os.environ['AWS_DEFAULT_REGION'] = self.settings.sqs.region
-
-            # Set queue URLs from settings
-            input_queue = self.settings.sqs.queues.get('input', '')
-            output_queue = self.settings.sqs.queues.get('output', '')
-            os.environ['PURIFYING_QUEUE_URL'] = f"{self.settings.sqs.endpoint}/000000000000/{input_queue}"
-            os.environ['PROCESSING_QUEUE_URL'] = f"{self.settings.sqs.endpoint}/000000000000/{output_queue}"
-
-            self._client = SQSClient()
+            # Pass configuration from Settings to SQSClient (no env access)
+            self._client = SQSClient(
+                endpoint_url=self.settings.sqs.endpoint,
+                region_name=self.settings.sqs.region,
+                aws_access_key_id=self.settings.aws.access_key_id,
+                aws_secret_access_key=self.settings.aws.secret_access_key
+            )
         return self._client
 
     def send_message(self, queue_name: str, message: Dict[str, Any]) -> bool:

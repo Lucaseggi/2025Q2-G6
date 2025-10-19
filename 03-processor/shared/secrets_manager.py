@@ -1,78 +1,74 @@
 """
 AWS Secrets Manager integration for Simpla pipeline.
 
-Provides centralized secret management with fallback to environment variables
-for local development. Supports both real AWS and LocalStack.
+Simple client configured explicitly by Settings. No auto-detection.
+Settings handles all environment detection and passes config here.
 """
 
 import json
 import os
 from typing import Dict, Any, Optional
-from functools import lru_cache
 import boto3
 from botocore.exceptions import ClientError
 
 
 class SecretsManager:
     """
-    Manages secrets from AWS Secrets Manager with environment variable fallback.
+    Simple Secrets Manager client configured explicitly by Settings.
+
+    No auto-detection - receives all configuration from Settings.
 
     Usage:
-        secrets = SecretsManager()
+        # Settings creates and configures this
+        secrets = SecretsManager(
+            endpoint_url='http://localstack:4566',  # or None for AWS
+            region_name='us-east-1',
+            aws_access_key_id='test',  # or None for Lambda IAM role
+            aws_secret_access_key='test'  # or None for Lambda IAM role
+        )
         aws_config = secrets.get_secret('simpla/shared/aws-config')
-        region = aws_config['aws_region']
     """
 
-    def __init__(self, use_localstack: Optional[bool] = None):
+    def __init__(
+        self,
+        endpoint_url: Optional[str] = None,
+        region_name: str = 'us-east-1',
+        aws_access_key_id: Optional[str] = None,
+        aws_secret_access_key: Optional[str] = None
+    ):
         """
-        Initialize Secrets Manager client.
+        Initialize Secrets Manager client with explicit configuration.
+
+        All parameters come from Settings - no environment detection here.
 
         Args:
-            use_localstack: Force LocalStack mode. If None, auto-detects from environment.
+            endpoint_url: SecretsManager endpoint (for LocalStack). None for AWS.
+            region_name: AWS region
+            aws_access_key_id: AWS access key (for LocalStack). None for Lambda IAM role.
+            aws_secret_access_key: AWS secret key (for LocalStack). None for Lambda IAM role.
         """
-        # Auto-detect LocalStack if not specified
-        if use_localstack is None:
-            use_localstack = self._is_localstack_env()
+        # Build client configuration
+        client_config = {
+            'region_name': region_name
+        }
 
-        self.use_localstack = use_localstack
+        # Add endpoint if provided (LocalStack)
+        if endpoint_url:
+            client_config['endpoint_url'] = endpoint_url
 
-        # Initialize boto3 client
-        if use_localstack:
-            # LocalStack configuration
-            endpoint_url = os.getenv('SECRETS_MANAGER_ENDPOINT', 'http://localstack:4566')
-            self.client = boto3.client(
-                'secretsmanager',
-                endpoint_url=endpoint_url,
-                region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1'),
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID', 'test'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY', 'test')
-            )
-        else:
-            # Real AWS configuration (uses instance role in Lambda)
-            self.client = boto3.client(
-                'secretsmanager',
-                region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
-            )
+        # Add credentials if provided (LocalStack); omit for Lambda IAM role
+        if aws_access_key_id and aws_secret_access_key:
+            client_config['aws_access_key_id'] = aws_access_key_id
+            client_config['aws_secret_access_key'] = aws_secret_access_key
 
-    @staticmethod
-    def _is_localstack_env() -> bool:
-        """Detect if running in LocalStack environment."""
-        # Check for LocalStack-specific environment variables
-        localstack_indicators = [
-            os.getenv('SQS_ENDPOINT', '').find('localstack') != -1,
-            os.getenv('S3_ENDPOINT', '').find('localstack') != -1,
-            os.getenv('SECRETS_MANAGER_ENDPOINT', '').find('localstack') != -1,
-            os.getenv('USE_LOCALSTACK', '').lower() == 'true',
-            os.getenv('AWS_ACCESS_KEY_ID') == 'test'
-        ]
-        return any(localstack_indicators)
+        self.client = boto3.client('secretsmanager', **client_config)
 
-    @lru_cache(maxsize=32)
     def get_secret(self, secret_name: str) -> Dict[str, Any]:
         """
-        Retrieve secret from AWS Secrets Manager with caching.
+        Retrieve secret from AWS Secrets Manager.
 
         Falls back to environment variables if Secrets Manager is unavailable.
+        This fallback is mainly for local development and Docker Compose.
 
         Args:
             secret_name: Name of the secret (e.g., 'simpla/shared/aws-config')
@@ -158,33 +154,16 @@ class SecretsManager:
         aws_config = self.get_secret('simpla/shared/aws-config')
         queue_names = self.get_secret('simpla/shared/queue-names')
 
-        sqs_endpoint = aws_config['sqs_endpoint']
+        sqs_endpoint = aws_config.get('sqs_endpoint', '')
         actual_queue_name = queue_names.get(queue_name, queue_name)
 
         # LocalStack format: http://endpoint/account_id/queue_name
-        if 'localstack' in sqs_endpoint:
+        if sqs_endpoint and 'localstack' in sqs_endpoint:
             return f"{sqs_endpoint}/000000000000/{actual_queue_name}"
 
         # Real AWS format - construct from region
         region = aws_config['aws_region']
-        # In Lambda, get account ID from execution role
-        # For now, use environment variable or default
+        # In Lambda, get account ID from execution role via environment
+        # This is one of the few cases where env access is acceptable
         account_id = os.getenv('AWS_ACCOUNT_ID', '000000000000')
         return f"https://sqs.{region}.amazonaws.com/{account_id}/{actual_queue_name}"
-
-
-# Global singleton instance
-_secrets_manager: Optional[SecretsManager] = None
-
-
-def get_secrets_manager() -> SecretsManager:
-    """
-    Get global SecretsManager instance (singleton pattern).
-
-    Returns:
-        Shared SecretsManager instance
-    """
-    global _secrets_manager
-    if _secrets_manager is None:
-        _secrets_manager = SecretsManager()
-    return _secrets_manager

@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from typing import Optional
 from dataclasses import dataclass
@@ -37,7 +38,10 @@ class LLMService:
     def _load_prompt(self) -> str:
         """Load orthography fix prompt from file"""
         try:
-            with open('/app/prompts/orthography_fix_prompt.txt', 'r', encoding='utf-8') as f:
+            # Detect prompts directory based on environment
+            prompts_dir = os.path.join(os.getcwd(), 'prompts')
+            prompt_path = os.path.join(prompts_dir, 'orthography_fix_prompt.txt')
+            with open(prompt_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
             logger.error(f"Failed to load orthography fix prompt: {e}")

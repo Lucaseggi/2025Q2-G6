@@ -339,7 +339,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stage=LogStage.STARTUP,
         method=event.get('httpMethod'),
         path=event.get('path'),
-        request_id=context.request_id if context else None
+        request_id=context.aws_request_id if context else None
     )
 
     # Route based on path and method
