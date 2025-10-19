@@ -1,11 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Union
 import logging
+from datetime import date
 
-from ..models.requests import ScrapeRequest, ProcessRequest, ReplayRequest
-from ..models.responses import HealthResponse, ScrapeResponse, ProcessResponse, ReplayResponse, ErrorResponse
+from ..models.requests import ScrapeRequest, ProcessRequest, ReplayRequest, DateRangeScrapeRequest
+from ..models.responses import (
+    HealthResponse, ScrapeResponse, ProcessResponse, ReplayResponse, ErrorResponse,
+    DateRangeScrapeResponse
+)
 from ..interfaces.scraper_interface import ScraperInterface
-from ..dependencies import get_scraper_service
+from ..services.daily_scraper_service import DailyScraperService
+from ..services.scheduler_service import SchedulerService
+from ..dependencies import get_scraper_service, get_daily_scraper_service, get_scheduler_service
 
 logger = logging.getLogger(__name__)
 
@@ -130,3 +136,71 @@ def replay_norm(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
         )
+
+
+
+
+
+@router.post("/scrape/date-range", response_model=Union[DateRangeScrapeResponse, ErrorResponse])
+def scrape_date_range_norms(
+    request: DateRangeScrapeRequest,
+    daily_scraper_service: DailyScraperService = Depends(get_daily_scraper_service)
+):
+    """Endpoint to scrape norms for a range of dates"""
+    try:
+        logger.info(f"Received date range scrape request: {request.start_date} to {request.end_date} (force={request.force})")
+
+        success, message, daily_stats = daily_scraper_service.scrape_date_range(
+            start_date=request.start_date,
+            end_date=request.end_date,
+            force=request.force
+        )
+
+        if success:
+            return DateRangeScrapeResponse(
+                status="success",
+                message=message,
+                daily_stats=daily_stats
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=message
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in date range scrape endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+
+
+
+
+@router.post("/scheduler/daily/trigger")
+def trigger_daily_scraping(
+    force: bool = False,
+    scheduler_service: SchedulerService = Depends(get_scheduler_service)
+):
+    """Manually trigger the daily scraping job"""
+    try:
+        logger.info(f"Manual trigger for daily scraping (force={force})")
+        scheduler_service.run_manual_daily_scraping(force=force)
+        
+        return {
+            "status": "success",
+            "message": "Daily scraping job triggered manually",
+            "forced": force
+        }
+    except Exception as e:
+        logger.error(f"Error triggering daily scraping: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+
