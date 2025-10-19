@@ -11,6 +11,8 @@ from .services.cache_service import CacheService
 from .services.queue_service import QueueService
 from .services.infoleg_norm_provider import InfolegNormProvider
 from .services.scraper_service import ScraperService
+from .services.daily_scraper_service import DailyScraperService
+from .services.scheduler_service import SchedulerService
 
 
 @lru_cache()
@@ -43,3 +45,16 @@ def get_scraper_service() -> ScraperInterface:
     queue = get_queue_service()
     norm_provider = get_norm_provider_service()
     return ScraperService(cache, queue, norm_provider)
+
+
+def get_daily_scraper_service() -> DailyScraperService:
+    """Provide daily scraper service with injected dependencies"""
+    settings = get_settings_cached()
+    scraper_service = get_scraper_service()
+    return DailyScraperService(settings, scraper_service)
+
+
+def get_scheduler_service() -> SchedulerService:
+    """Provide scheduler service with injected dependencies"""
+    daily_scraper_service = get_daily_scraper_service()
+    return SchedulerService(daily_scraper_service)
