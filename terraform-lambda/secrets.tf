@@ -128,3 +128,33 @@ resource "aws_secretsmanager_secret_version" "services_config" {
     inserter_port  = 8005
   })
 }
+
+# 6. Guard API Endpoints Secret
+# This secret stores the API Gateway URLs for relational and vectorial guards
+# These are automatically populated from the guard Lambda deployments
+# The inserter service reads these URLs to connect to the guards
+resource "aws_secretsmanager_secret" "guard_endpoints" {
+  name        = "simpla/services/guard-endpoints"
+  description = "API Gateway endpoints for relational and vectorial guards"
+
+  tags = {
+    Name        = "simpla-guard-endpoints"
+    Environment = var.environment
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "guard_endpoints" {
+  secret_id = aws_secretsmanager_secret.guard_endpoints.id
+
+  secret_string = jsonencode({
+    # Full API URLs including the base path (e.g., https://xxx.execute-api.us-east-1.amazonaws.com/prod/api/v1/relational)
+    relational_api_url = "${module.relational_guard.api_endpoint}/api/v1/relational"
+    vectorial_api_url  = "${module.vectorial_guard.api_endpoint}/api/v1/vectorial"
+  })
+
+  # Ensure guards are deployed before creating the secret
+  depends_on = [
+    module.relational_guard,
+    module.vectorial_guard
+  ]
+}

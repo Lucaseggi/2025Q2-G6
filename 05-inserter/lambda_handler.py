@@ -4,7 +4,7 @@ AWS Lambda handler for inserter service
 This is a thin adapter layer for SQS trigger only (no API endpoints).
 Processes messages from inserting queue and inserts into relational and vectorial databases.
 
-All business logic remains in worker.py - this handler delegates to it.
+Uses dependency injection for all services - no direct environment access.
 """
 
 import json
@@ -22,28 +22,42 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'shared'))
 from models import ProcessedData
 from structured_logger import StructuredLogger, LogStage
 
-# Add local modules to path
+# Add local src to path
+sys.path.append('/var/task')
 sys.path.append(os.path.join(os.path.dirname(__file__)))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from grpc_clients import GrpcServiceClients
+from src.dependencies import get_storage_client, get_settings
+from storage_client_interface import StorageClientInterface
 
 # Initialize logger
 logger = StructuredLogger("inserter", "lambda")
 
-# Initialize gRPC clients at cold start (reused across warm invocations)
-_grpc_clients = None
+# Initialize services at cold start (reused across warm invocations)
+_storage_client = None
+_settings = None
 
 
-def get_grpc_clients():
-    """Initialize gRPC clients on cold start, reuse on warm invocations"""
-    global _grpc_clients
+def get_services():
+    """Initialize services on cold start, reuse on warm invocations"""
+    global _storage_client, _settings
 
-    if _grpc_clients is None:
-        logger.info("Cold start: Initializing gRPC clients", stage=LogStage.STARTUP)
-        _grpc_clients = GrpcServiceClients()
-        logger.info("gRPC clients initialized successfully", stage=LogStage.STARTUP)
+    if _settings is None:
+        logger.info("Cold start: Loading settings", stage=LogStage.STARTUP)
+        _settings = get_settings()
+        logger.info(
+            f"Settings loaded successfully",
+            stage=LogStage.STARTUP,
+            client_type=_settings.storage.default_client_type,
+            is_lambda=_settings.environment.is_lambda
+        )
 
-    return _grpc_clients
+    if _storage_client is None:
+        logger.info("Cold start: Initializing storage client", stage=LogStage.STARTUP)
+        _storage_client = get_storage_client()
+        logger.info("Storage client initialized successfully", stage=LogStage.STARTUP)
+
+    return _storage_client, _settings
 
 
 def parse_numero_to_int(numero_str):
@@ -161,7 +175,7 @@ def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
     Handle SQS trigger: Insert documents into databases
 
     AWS automatically invokes Lambda when messages arrive in SQS queue.
-    Inserts data into both relational and vectorial databases via gRPC.
+    Inserts data into both relational and vectorial databases via REST API.
 
     Args:
         event: SQS event with Records array
@@ -169,7 +183,7 @@ def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Processing summary
     """
-    grpc_clients = get_grpc_clients()
+    storage_client, settings = get_services()
     results = []
 
     for record in event.get('Records', []):
@@ -205,35 +219,45 @@ def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
                 infoleg_id=doc_id
             )
 
-            pipeline_result = grpc_clients.call_both_services_sequential(legacy_format_data)
+            # Step 1: Call relational store
+            relational_result = storage_client.call_relational_store(legacy_format_data)
+
+            # Step 2: Call vectorial store with PK mapping from relational
+            vectorial_result = storage_client.call_vectorial_store(
+                legacy_format_data,
+                pk_mapping_json=relational_result.get('pk_mapping_json')
+            )
 
             duration_ms = (time.time() - start_time) * 1000
 
-            if pipeline_result['pipeline_success']:
+            # Check if both succeeded
+            pipeline_success = relational_result['success'] and vectorial_result['success']
+
+            if pipeline_success:
                 results.append({
                     'doc_id': doc_id,
                     'status': 'success',
-                    'relational_success': pipeline_result['relational']['success'],
-                    'vectorial_success': pipeline_result['vectorial']['success']
+                    'relational_success': relational_result['success'],
+                    'vectorial_success': vectorial_result['success']
                 })
 
                 logger.log_processing_complete(
                     infoleg_id=doc_id,
                     duration_ms=duration_ms,
-                    relational_success=pipeline_result['relational']['success'],
-                    vectorial_success=pipeline_result['vectorial']['success']
+                    relational_success=relational_result['success'],
+                    vectorial_success=vectorial_result['success']
                 )
             else:
                 results.append({
                     'doc_id': doc_id,
                     'status': 'failed',
-                    'relational_message': pipeline_result['relational']['message'],
-                    'vectorial_message': pipeline_result['vectorial']['message']
+                    'relational_message': relational_result['message'],
+                    'vectorial_message': vectorial_result['message']
                 })
 
                 logger.log_processing_failed(
                     infoleg_id=doc_id,
-                    error=f"Relational: {pipeline_result['relational']['message']}, Vectorial: {pipeline_result['vectorial']['message']}"
+                    error=f"Relational: {relational_result['message']}, Vectorial: {vectorial_result['message']}"
                 )
 
         except Exception as e:

@@ -17,9 +17,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy shared modules
 COPY shared ./shared
 
-# Copy inserter code
+# Copy inserter code (all necessary modules)
+COPY src ./src
+COPY config.json .
+COPY storage_client_interface.py .
+COPY rest_storage_client.py .
+COPY grpc_storage_client.py .
 COPY grpc_clients.py .
-COPY proto ./proto
+COPY data_enrichment_service.py .
 COPY lambda_handler.py .
 
 # Lambda will invoke the handler specified in CMD

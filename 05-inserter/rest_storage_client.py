@@ -1,6 +1,5 @@
 """REST API-based implementation of the storage client interface."""
 
-import os
 import json
 import copy
 import requests
@@ -12,19 +11,26 @@ from data_enrichment_service import DataEnrichmentService, MissingIdError
 
 
 class RestStorageClient(StorageClientInterface):
-    """REST API-based client for communicating with relational and vectorial services."""
+    """REST API-based client for communicating with relational and vectorial services via REST API."""
 
-    def __init__(self):
-        self.relational_base_url = os.getenv('RELATIONAL_API_HOST', 'http://localhost:8090')
-        self.vectorial_base_url = os.getenv('VECTORIAL_API_HOST', 'http://localhost:8080')
+    def __init__(self, relational_api_url: str, vectorial_api_url: str, timeout_seconds: int = 60):
+        """
+        Initialize REST storage client with API URLs from settings.
 
+        Args:
+            relational_api_url: Full base URL for relational guard API (e.g., "https://api.example.com/api/v1/relational")
+            vectorial_api_url: Full base URL for vectorial guard API (e.g., "https://api.example.com/api/v1/vectorial")
+            timeout_seconds: Request timeout in seconds
+        """
         # Remove trailing slashes
-        self.relational_base_url = self.relational_base_url.rstrip('/')
-        self.vectorial_base_url = self.vectorial_base_url.rstrip('/')
+        self.relational_base_url = relational_api_url.rstrip('/')
+        self.vectorial_base_url = vectorial_api_url.rstrip('/')
+        self.timeout_seconds = timeout_seconds
 
         print(f"[{datetime.now()}] REST clients initialized:")
         print(f"[{datetime.now()}] - Relational API: {self.relational_base_url}")
         print(f"[{datetime.now()}] - Vectorial API: {self.vectorial_base_url}")
+        print(f"[{datetime.now()}] - Timeout: {self.timeout_seconds}s")
 
     def call_relational_store(self, data: Any) -> Dict[str, Any]:
         """Call the relational API store method via REST"""
@@ -48,9 +54,9 @@ class RestStorageClient(StorageClientInterface):
                 # For other types, wrap in dict
                 payload = {"data": str(data)}
 
-            url = f"{self.relational_base_url}/api/v1/relational/store"
+            url = f"{self.relational_base_url}/store"
 
-            response = requests.post(url, json=payload, timeout=60)
+            response = requests.post(url, json=payload, timeout=self.timeout_seconds)
             response.raise_for_status()
 
             response_data = response.json()
@@ -97,9 +103,9 @@ class RestStorageClient(StorageClientInterface):
             else:
                 payload = {"data": str(enriched_data)}
 
-            url = f"{self.vectorial_base_url}/api/v1/vectorial/store"
+            url = f"{self.vectorial_base_url}/store"
 
-            response = requests.post(url, json=payload, timeout=60)
+            response = requests.post(url, json=payload, timeout=self.timeout_seconds)
             response.raise_for_status()
 
             response_data = response.json()

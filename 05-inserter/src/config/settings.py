@@ -1,17 +1,17 @@
-"""Configuration settings for the inserter service with Secrets Manager support"""
+"""Configuration management for inserter service using Pydantic with Secrets Manager"""
 
 import json
 import os
 import sys
 from pathlib import Path
-from functools import lru_cache
-from typing import Dict
-from pydantic import BaseModel, Field
-
+from typing import Optional, Dict
+from pydantic import BaseModel, Field, model_validator
+from pydantic_settings import BaseSettings
 
 # Import shared secrets manager
+sys.path.append('/var/task/shared')
 sys.path.append('/app/shared')
-from secrets_manager import get_secrets_manager
+from secrets_manager import SecretsManager
 
 
 class ServiceConfig(BaseModel):
@@ -21,22 +21,17 @@ class ServiceConfig(BaseModel):
     debug: bool = False
 
 
-class SQSQueues(BaseModel):
-    """SQS queue names (logical)"""
-    input: str
-
-
 class SQSConfig(BaseModel):
     """SQS configuration"""
-    endpoint: str  # From secrets
-    region: str  # From secrets
-    queues: SQSQueues
+    endpoint: Optional[str] = None  # None for AWS Lambda
+    region: str
+    queues: Dict[str, str]  # Actual queue names
 
 
 class AWSCredentials(BaseModel):
-    """AWS credentials (from secrets)"""
-    access_key_id: str
-    secret_access_key: str
+    """AWS credentials (empty for Lambda, populated for LocalStack)"""
+    access_key_id: Optional[str] = None
+    secret_access_key: Optional[str] = None
     region: str
 
 
@@ -48,137 +43,175 @@ class StorageConfig(BaseModel):
     retry_delay_seconds: int
 
 
-class GrpcServiceConfig(BaseModel):
-    """gRPC service configuration"""
-    timeout_seconds: int
+class ApiEndpointsConfig(BaseModel):
+    """API endpoint configuration for guard services"""
+    relational_api_url: str
+    vectorial_api_url: str
 
 
-class GrpcConfig(BaseModel):
-    """gRPC configuration (algorithm parameters from config.json)"""
-    relational_service: GrpcServiceConfig
-    vectorial_service: GrpcServiceConfig
+class EnvironmentConfig(BaseModel):
+    """Environment detection and configuration"""
+    is_localstack: bool
+    is_lambda: bool
+    secrets_manager_endpoint: Optional[str] = None
+    aws_region: str
+    aws_access_key_id: Optional[str] = None
+    aws_secret_access_key: Optional[str] = None
 
 
-class Settings(BaseModel):
-    """Application configuration settings"""
+class Settings(BaseSettings):
+    """
+    Application configuration with centralized environment detection.
+
+    Settings is the injected dependency that services receive.
+    Services never access os.getenv() - everything comes from Settings.
+    """
+
+    # Environment detection
+    environment: EnvironmentConfig
+
+    # Configuration
     service: ServiceConfig
     sqs: SQSConfig
     aws: AWSCredentials
     storage: StorageConfig
-    grpc: GrpcConfig
+    api_endpoints: ApiEndpointsConfig
 
-    # Service runtime config from secrets
+    # Service-specific runtime config
     opensearch_endpoint: str
-    relational_host: str = "relational-guard"
-    relational_port: int = 50051
-    vectorial_host: str = "vectorial-guard"
-    vectorial_port: int = 50052
+    port: int = Field(ge=1, le=65535, default=8005)
 
+    model_config = {
+        "case_sensitive": False,
+        "extra": "ignore"
+    }
 
-def load_config() -> Settings:
-    """Load configuration from config.json and AWS Secrets Manager"""
-    # 1. Load algorithm parameters from config.json
-    possible_paths = [
-        Path(__file__).parent.parent.parent / "config.json",  # /app/config.json
-        Path.cwd() / "config.json",  # Current working directory
-        Path("config.json")  # Relative
-    ]
+    @staticmethod
+    def _detect_environment() -> EnvironmentConfig:
+        """Detect environment (LocalStack vs Lambda). ONLY place with env detection."""
+        localstack_indicators = [
+            'localstack' in os.getenv('SQS_ENDPOINT', '').lower(),
+            'localstack' in os.getenv('OPENSEARCH_ENDPOINT', '').lower(),
+            'localstack' in os.getenv('SECRETS_MANAGER_ENDPOINT', '').lower(),
+            os.getenv('USE_LOCALSTACK', '').lower() == 'true',
+            os.getenv('AWS_ACCESS_KEY_ID') == 'test'
+        ]
+        is_localstack = any(localstack_indicators)
+        is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ and not is_localstack
 
-    config_path = None
-    for path in possible_paths:
-        if path.exists():
-            config_path = path
-            break
-
-    if not config_path:
-        raise FileNotFoundError(f"Could not find config.json in any of: {possible_paths}")
-
-    with open(config_path, 'r') as f:
-        json_config = json.load(f)
-
-    # 2. Load sensitive data from AWS Secrets Manager
-    try:
-        secrets = get_secrets_manager()
-
-        # Get AWS config
-        aws_config = secrets.get_secret('simpla/shared/aws-config')
-        aws_credentials = {
-            'access_key_id': aws_config['aws_access_key_id'],
-            'secret_access_key': aws_config['aws_secret_access_key'],
-            'region': aws_config['aws_region']
+        env_config = {
+            'is_localstack': is_localstack,
+            'is_lambda': is_lambda,
+            'aws_region': os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
         }
 
-        # Get queue names
-        queue_names = secrets.get_secret('simpla/shared/queue-names')
+        if is_localstack:
+            env_config['secrets_manager_endpoint'] = os.getenv('SECRETS_MANAGER_ENDPOINT', 'http://localstack:4566')
+            env_config['aws_access_key_id'] = os.getenv('AWS_ACCESS_KEY_ID', 'test')
+            env_config['aws_secret_access_key'] = os.getenv('AWS_SECRET_ACCESS_KEY', 'test')
+        else:
+            env_config['secrets_manager_endpoint'] = None
+            env_config['aws_access_key_id'] = None
+            env_config['aws_secret_access_key'] = None
 
-        # Get service config
-        service_config = secrets.get_secret('simpla/services/config')
+        return EnvironmentConfig(**env_config)
 
-        # Build SQS config
-        sqs_queues = json_config.get('sqs', {}).get('queues', {})
-        # Map logical queue names to actual queue names
-        mapped_queues = {}
-        for queue_type, logical_name in sqs_queues.items():
-            mapped_queues[queue_type] = queue_names.get(logical_name, logical_name)
+    @model_validator(mode='before')
+    def load_config(cls, values):
+        """Load configuration from environment + config.json + Secrets Manager"""
 
-        sqs_config = {
-            'endpoint': aws_config['sqs_endpoint'],
-            'region': aws_config['aws_region'],
-            'queues': mapped_queues
-        }
+        # STEP 1: Detect environment
+        env_config = cls._detect_environment()
+        values['environment'] = env_config.model_dump()
 
-        # Build final config
-        config_data = {
-            'service': json_config.get('service', {}),
-            'sqs': sqs_config,
-            'aws': aws_credentials,
-            'storage': json_config.get('storage', {}),
-            'grpc': json_config.get('grpc', {}),
-            'opensearch_endpoint': service_config['opensearch_endpoint'],
-            # gRPC hosts and ports could be in secrets too, but using defaults for now
-            'relational_host': os.getenv('RELATIONAL_MS_HOST', 'relational-guard'),
-            'relational_port': int(os.getenv('RELATIONAL_MS_PORT', '50051')),
-            'vectorial_host': os.getenv('VECTORIAL_MS_HOST', 'vectorial-guard'),
-            'vectorial_port': int(os.getenv('VECTORIAL_MS_PORT', '50052'))
-        }
+        # STEP 2: Load algorithm parameters from config.json
+        possible_paths = [
+            Path("/var/task/config.json"),  # Lambda
+            Path("/app/config.json"),  # Docker
+            Path.cwd() / "config.json",  # Current working directory
+            Path(__file__).parent.parent.parent / "config.json"
+        ]
 
-        return Settings(**config_data)
+        config_path = None
+        for path in possible_paths:
+            if path.exists():
+                config_path = path
+                break
 
-    except Exception as e:
-        # Fallback: use environment variables
-        print(f"Warning: Could not load from Secrets Manager, using env fallback: {e}")
+        if config_path:
+            with open(config_path) as f:
+                json_config = json.load(f)
+            for key, value in json_config.items():
+                if key not in values:
+                    values[key] = value
+        else:
+            # Use minimal defaults if config.json not found
+            json_config = {
+                'service': {'name': 'inserter-ms', 'version': '2.0.0', 'debug': False},
+                'storage': {'default_client_type': 'rest', 'timeout_seconds': 30, 'max_retries': 3, 'retry_delay_seconds': 1},
+                'sqs': {'queues': {'input': 'inserting'}}
+            }
+            for key, value in json_config.items():
+                if key not in values:
+                    values[key] = value
 
-        # Build from env vars
-        sqs_queues = json_config.get('sqs', {}).get('queues', {})
-        sqs_config = {
-            'endpoint': os.getenv('SQS_ENDPOINT', 'http://localstack:4566'),
-            'region': os.getenv('AWS_DEFAULT_REGION', 'us-east-1'),
-            'queues': sqs_queues
-        }
+        # STEP 3: Configure SecretsManager explicitly (no auto-detection)
+        secrets = SecretsManager(
+            endpoint_url=env_config.secrets_manager_endpoint,
+            region_name=env_config.aws_region,
+            aws_access_key_id=env_config.aws_access_key_id,
+            aws_secret_access_key=env_config.aws_secret_access_key
+        )
 
-        aws_credentials = {
-            'access_key_id': os.getenv('AWS_ACCESS_KEY_ID', 'test'),
-            'secret_access_key': os.getenv('AWS_SECRET_ACCESS_KEY', 'test'),
-            'region': os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
-        }
+        try:
+            # Get secrets
+            aws_config = secrets.get_secret('simpla/shared/aws-config')
+            queue_names = secrets.get_secret('simpla/shared/queue-names')
+            service_config = secrets.get_secret('simpla/services/config')
+            guard_endpoints = secrets.get_secret('simpla/services/guard-endpoints')
 
-        config_data = {
-            'service': json_config.get('service', {}),
-            'sqs': sqs_config,
-            'aws': aws_credentials,
-            'storage': json_config.get('storage', {}),
-            'grpc': json_config.get('grpc', {}),
-            'opensearch_endpoint': os.getenv('OPENSEARCH_ENDPOINT', 'http://opensearch:9200'),
-            'relational_host': os.getenv('RELATIONAL_MS_HOST', 'relational-guard'),
-            'relational_port': int(os.getenv('RELATIONAL_MS_PORT', '50051')),
-            'vectorial_host': os.getenv('VECTORIAL_MS_HOST', 'vectorial-guard'),
-            'vectorial_port': int(os.getenv('VECTORIAL_MS_PORT', '50052'))
-        }
+            # Build AWS credentials
+            values['aws'] = {
+                'access_key_id': aws_config.get('aws_access_key_id') if env_config.is_localstack else None,
+                'secret_access_key': aws_config.get('aws_secret_access_key') if env_config.is_localstack else None,
+                'region': aws_config['aws_region']
+            }
 
-        return Settings(**config_data)
+            # Build SQS config
+            if 'sqs' not in values:
+                values['sqs'] = {}
+            values['sqs']['endpoint'] = aws_config.get('sqs_endpoint') if env_config.is_localstack else None
+            values['sqs']['region'] = aws_config['aws_region']
+            if 'queues' not in values['sqs']:
+                values['sqs']['queues'] = {}
+            # Map logical queue name to actual queue name
+            logical_name = values['sqs']['queues'].get('input', 'inserting')
+            values['sqs']['queues']['input'] = queue_names.get(logical_name, logical_name)
+
+            # Build API endpoints config
+            values['api_endpoints'] = {
+                'relational_api_url': guard_endpoints['relational_api_url'],
+                'vectorial_api_url': guard_endpoints['vectorial_api_url']
+            }
+
+            # Get opensearch endpoint
+            values['opensearch_endpoint'] = service_config['opensearch_endpoint']
+
+            # Get service port
+            values['port'] = service_config.get('inserter_port', 8005)
+
+        except Exception as e:
+            print(f"Error loading from Secrets Manager: {e}")
+            raise RuntimeError(f"Failed to load configuration. Error: {e}")
+
+        return values
 
 
-@lru_cache()
-def get_settings() -> Settings:
-    """Get cached configuration settings"""
-    return load_config()
+def get_inserter_settings() -> Settings:
+    """Get application settings instance"""
+    return Settings()
+
+
+# Backwards compatibility aliases
+get_settings = get_inserter_settings
+InserterSettings = Settings

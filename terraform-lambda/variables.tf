@@ -98,3 +98,51 @@ variable "storage_client_type" {
   type        = string
   default     = "rest"
 }
+
+# Guard Lambda Variables
+variable "project_name" {
+  description = "Project name for guard services"
+  type        = string
+  default     = "simpla"
+}
+
+variable "tags" {
+  description = "Tags to apply to resources"
+  type        = map(string)
+  default     = {
+    Project = "simpla"
+  }
+}
+
+variable "lambda_runtime" {
+  description = "Lambda runtime for Java guard functions"
+  type        = string
+  default     = "java17"
+}
+
+variable "lambda_memory_size" {
+  description = "Memory size for guard Lambda functions in MB"
+  type        = number
+  default     = 512
+}
+
+variable "lambda_timeout" {
+  description = "Timeout for guard Lambda functions in seconds"
+  type        = number
+  default     = 30
+}
+
+# Database and Vector Store Endpoints
+# NOTE: These will be created by infrastructure team, but we provide variables
+# for temporary configuration during development
+variable "postgres_host" {
+  description = "PostgreSQL database host (will be RDS endpoint)"
+  type        = string
+  default     = "localhost"  # Placeholder - will fail until real RDS is created
+}
+
+variable "opensearch_host" {
+  description = "OpenSearch host (will be OpenSearch/Milvus endpoint)"
+  type        = string
+  default     = "localhost"  # Placeholder - will fail until real OpenSearch is created
+}

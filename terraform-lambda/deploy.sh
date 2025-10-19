@@ -129,9 +129,60 @@ if [ ! -f "terraform.tfvars" ]; then
     exit 1
 fi
 
+# Step 0: Update terraform.tfvars with correct account ID
+log_step "Step 0: Updating terraform.tfvars with account ID..."
+sed -i "s/[0-9]\{12\}\.dkr\.ecr\.${AWS_REGION}\.amazonaws\.com/${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/g" terraform.tfvars
+sed -i "s/simpla-\(scraper\|purifier\|processor\)-storage-[0-9]\{12\}/simpla-\1-storage-${AWS_ACCOUNT_ID}/g" terraform.tfvars
+log_info "✓ terraform.tfvars updated"
+echo ""
+
+# Step 0.5: Build and upload guard JARs
+log_step "Step 0.5: Building and uploading guard JARs..."
+
+# Create S3 bucket for lambda artifacts if it doesn't exist
+BUCKET_NAME="simpla-lambda-artifacts"
+if ! aws s3 ls "s3://${BUCKET_NAME}" 2>/dev/null; then
+    log_info "Creating S3 bucket ${BUCKET_NAME}..."
+    aws s3 mb "s3://${BUCKET_NAME}" --region "${AWS_REGION}"
+fi
+
+# Build relational guard JAR
+log_info "Building relational-guard JAR..."
+cd ../06-relational-guard
+mvn clean package -f pom-lambda.xml -DskipTests -q
+RELATIONAL_JAR="target/relational-guard-1.0.0.jar"
+
+if [ ! -f "$RELATIONAL_JAR" ]; then
+    log_error "Failed to build relational-guard JAR"
+    exit 1
+fi
+
+# Upload relational guard JAR
+log_info "Uploading relational-guard JAR to S3..."
+aws s3 cp "$RELATIONAL_JAR" "s3://${BUCKET_NAME}/relational-guard/relational-guard-1.0.0.jar"
+
+# Build vectorial guard JAR
+log_info "Building vectorial-guard JAR..."
+cd ../07-vectorial-guard
+mvn clean package -f pom-lambda.xml -DskipTests -q
+VECTORIAL_JAR="target/vectorial-guard-1.0.0.jar"
+
+if [ ! -f "$VECTORIAL_JAR" ]; then
+    log_error "Failed to build vectorial-guard JAR"
+    exit 1
+fi
+
+# Upload vectorial guard JAR
+log_info "Uploading vectorial-guard JAR to S3..."
+aws s3 cp "$VECTORIAL_JAR" "s3://${BUCKET_NAME}/vectorial-guard/vectorial-guard-1.0.0.jar"
+
+cd ../terraform-lambda
+log_info "✓ Guard JARs built and uploaded"
+echo ""
+
 # Step 1: Deploy to ECR
 if [ "$SKIP_ECR" = false ]; then
-    log_step "Step 1/2: Deploying Docker images to ECR..."
+    log_step "Step 1/3: Deploying Docker images to ECR..."
 
     if [ ! -f "../deploy-to-ecr.sh" ]; then
         log_error "deploy-to-ecr.sh not found in parent directory"
@@ -145,13 +196,13 @@ if [ "$SKIP_ECR" = false ]; then
     log_info "✓ ECR deployment complete"
     echo ""
 else
-    log_step "Step 1/2: Skipping ECR deployment"
+    log_step "Step 1/3: Skipping ECR deployment"
     echo ""
 fi
 
 # Step 2: Deploy with Terraform
 if [ "$SKIP_TERRAFORM" = false ]; then
-    log_step "Step 2/2: Deploying infrastructure with Terraform..."
+    log_step "Step 2/3: Deploying infrastructure with Terraform..."
 
     # Check if terraform.tfvars has been customized
     if grep -q "YOUR_GEMINI_API_KEY_HERE" terraform.tfvars; then
@@ -180,7 +231,7 @@ if [ "$SKIP_TERRAFORM" = false ]; then
     log_info "✓ Terraform deployment complete"
     echo ""
 else
-    log_step "Step 2/2: Skipping Terraform deployment"
+    log_step "Step 2/3: Skipping Terraform deployment"
     echo ""
 fi
 
