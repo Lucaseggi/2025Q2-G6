@@ -62,3 +62,24 @@ output "frontend_website_url" {
   description = "Complete URL to access the frontend website"
   value       = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
 }
+
+# Lambda and API Gateway Outputs
+output "relational_guard_api_url" {
+  description = "API Gateway base URL for Relational Guard Lambda function"
+  value       = module.lambda_relational_guard.relational_guard_api_url
+}
+
+output "relational_guard_api_id" {
+  description = "API Gateway REST API ID"
+  value       = module.lambda_relational_guard.relational_guard_api_id
+}
+
+output "relational_guard_lambda_function_name" {
+  description = "Name of the Relational Guard Lambda function"
+  value       = module.lambda_relational_guard.relational_guard_lambda_function_name
+}
+
+output "relational_guard_endpoints" {
+  description = "All API endpoints for Relational Guard"
+  value       = module.lambda_relational_guard.relational_guard_endpoints
+}

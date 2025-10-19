@@ -1,0 +1,15 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Lambda artifacts
+lambda/lambda-artifacts/*.jar
+lambda/lambda-artifacts/*.zip
+
+# Environment variables (sensitive data)
+.env
+.env.local
+*.env
+!.env.example
