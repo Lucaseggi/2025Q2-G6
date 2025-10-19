@@ -40,6 +40,9 @@ public class VectorialApplication {
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(VectorialApplication.class, args);
+        SpringApplication app = new SpringApplication(VectorialApplication.class);
+        // Ensure port 8080 is used
+        app.setDefaultProperties(java.util.Collections.singletonMap("server.port", "8080"));
+        app.run(args);
     }
 }

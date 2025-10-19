@@ -11,9 +11,24 @@ from shared.structured_logger import StructuredLogger, LogStage
 # Force output flushing
 import functools
 print = functools.partial(print, flush=True)
-from grpc_clients import GrpcServiceClients
+
+# Import storage clients
+from grpc_storage_client import GrpcStorageClient
+from rest_storage_client import RestStorageClient
 
 logger = StructuredLogger("inserter", "worker")
+
+
+def create_storage_client():
+    """Create storage client based on environment variable."""
+    client_type = os.getenv('STORAGE_CLIENT_TYPE', 'rest').lower()
+
+    if client_type == 'rest':
+        logger.info("Using REST API storage client", stage=LogStage.STARTUP)
+        return RestStorageClient()
+    else:
+        logger.info("Using gRPC storage client", stage=LogStage.STARTUP)
+        return GrpcStorageClient()
 
 def parse_numero_to_int(numero_str):
     """Parse numero field to integer, return -1 if unparseable"""
@@ -138,7 +153,7 @@ def main():
     logger.info("Inserter MS started - listening for messages", stage=LogStage.STARTUP)
 
     queue_client = create_queue_client()
-    grpc_clients = GrpcServiceClients()
+    storage_client = create_storage_client()
 
     while True:
         try:
@@ -186,7 +201,7 @@ def main():
                     infoleg_id=doc_id
                 )
 
-                pipeline_result = grpc_clients.call_both_services_sequential(legacy_format_data)
+                pipeline_result = storage_client.call_both_services_sequential(legacy_format_data)
 
                 duration_ms = (time.time() - start_time) * 1000
 
