@@ -115,128 +115,15 @@
                 </configuration>
             </plugin>
 
-            <!-- Shade plugin for standalone JAR -->
+            <!-- Spring Boot Maven Plugin for standalone JAR -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.1</version>
-                <configuration>
-                    <createDependencyReducedPom>false</createDependencyReducedPom>
-                    <transformers>
-                        <!-- Add Main-Class to manifest -->
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                            <mainClass>${main.class}</mainClass>
-                        </transformer>
-                        <!-- Aggregate Spring Boot configuration files -->
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
-                            <resource>META-INF/spring.handlers</resource>
-                        </transformer>
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
-                            <resource>META-INF/spring.schemas</resource>
-                        </transformer>
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
-                            <resource>META-INF/spring.factories</resource>
-                        </transformer>
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
-                            <resource>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</resource>
-                        </transformer>
-                        <!-- Preserve service provider interfaces -->
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                    </transformers>
-                    <filters>
-                        <filter>
-                            <artifact>*:*</artifact>
-                            <excludes>
-                                <!-- Exclude signature files that cause issues -->
-                                <exclude>META-INF/*.SF</exclude>
-                                <exclude>META-INF/*.DSA</exclude>
-                                <exclude>META-INF/*.RSA</exclude>
-                                <!-- Exclude gRPC service implementation (not Pinecone's gRPC client!) -->
-                                <exclude>com/simpla/vectorial/proto/**</exclude>
-                                <!-- Exclude Lambda handler -->
-                                <exclude>com/simpla/vectorial/lambda/**</exclude>
-                                <!-- Exclude documentation and sources -->
-                                <exclude>META-INF/maven/**</exclude>
-                                <exclude>META-INF/LICENSE*</exclude>
-                                <exclude>META-INF/NOTICE*</exclude>
-                                <exclude>META-INF/DEPENDENCIES</exclude>
-                                <!-- Exclude Lucene entirely -->
-                                <exclude>org/apache/lucene/**</exclude>
-                                <!-- Exclude OpenSearch server components not needed for client -->
-                                <exclude>org/opensearch/bootstrap/**</exclude>
-                                <exclude>org/opensearch/cli/**</exclude>
-                                <exclude>org/opensearch/node/**</exclude>
-                                <exclude>org/opensearch/plugins/**</exclude>
-                                <exclude>org/opensearch/painless/**</exclude>
-                                <exclude>org/opensearch/script/**</exclude>
-                                <exclude>org/opensearch/snapshots/**</exclude>
-                                <exclude>org/opensearch/repositories/**</exclude>
-                                <!-- Exclude some Netty codecs not used -->
-                                <exclude>io/netty/handler/codec/mqtt/**</exclude>
-                                <exclude>io/netty/handler/codec/stomp/**</exclude>
-                            </excludes>
-                        </filter>
-                        <!-- Keep Spring Boot classes that might be removed by minimization -->
-                        <filter>
-                            <artifact>org.springframework.boot:*</artifact>
-                            <includes>
-                                <include>**</include>
-                            </includes>
-                        </filter>
-                        <!-- Keep Spring Framework classes -->
-                        <filter>
-                            <artifact>org.springframework:*</artifact>
-                            <includes>
-                                <include>**</include>
-                            </includes>
-                        </filter>
-                        <!-- Keep Spring Cloud Function classes -->
-                        <filter>
-                            <artifact>org.springframework.cloud:*</artifact>
-                            <includes>
-                                <include>**</include>
-                            </includes>
-                        </filter>
-                        <!-- Keep AWS Lambda classes -->
-                        <filter>
-                            <artifact>com.amazonaws.serverless:*</artifact>
-                            <includes>
-                                <include>**</include>
-                            </includes>
-                        </filter>
-                        <filter>
-                            <artifact>com.amazonaws:aws-lambda-java-*</artifact>
-                            <includes>
-                                <include>**</include>
-                            </includes>
-                        </filter>
-                        <!-- Keep Jackson classes for JSON -->
-                        <filter>
-                            <artifact>com.fasterxml.jackson.*:*</artifact>
-                            <includes>
-                                <include>**</include>
-                            </includes>
-                        </filter>
-                        <!-- Keep OpenSearch and Pinecone classes -->
-                        <filter>
-                            <artifact>org.opensearch.client:*</artifact>
-                            <includes>
-                                <include>**</include>
-                            </includes>
-                        </filter>
-                        <filter>
-                            <artifact>io.pinecone:*</artifact>
-                            <includes>
-                                <include>**</include>
-                            </includes>
-                        </filter>
-                    </filters>
-                </configuration>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring.boot.version}</version>
                 <executions>
                     <execution>
-                        <phase>package</phase>
                         <goals>
-                            <goal>shade</goal>
+                            <goal>repackage</goal>
                         </goals>
                     </execution>
                 </executions>
