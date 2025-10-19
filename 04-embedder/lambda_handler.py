@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime
 from typing import Dict, Any
 
 # Add shared modules to path
@@ -181,16 +182,136 @@ def handle_sqs_processing(event: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def handle_api_gateway_event(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Main Lambda handler: Processes SQS events only
+    Handle API Gateway events: /health and /embed endpoints
 
     Args:
-        event: SQS event with Records array
+        event: API Gateway event with httpMethod, path, body, etc.
+
+    Returns:
+        API Gateway response with statusCode, headers, and body
+    """
+    embedder_service, queue_service, settings = get_services()
+
+    http_method = event.get('httpMethod', event.get('requestContext', {}).get('http', {}).get('method', 'GET'))
+    path = event.get('path', event.get('rawPath', '/'))
+
+    logger.info(
+        f"API Gateway request: {http_method} {path}",
+        stage=LogStage.STARTUP,
+        method=http_method,
+        path=path
+    )
+
+    # Health endpoint
+    if path == '/health' and http_method == 'GET':
+        model_status = "available" if embedder_service.is_available() else "unavailable"
+
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({
+                'status': 'healthy',
+                'service': 'embedding-ms',
+                'embedding_model_status': model_status,
+                'timestamp': datetime.now().isoformat()
+            })
+        }
+
+    # Embed endpoint
+    elif path == '/embed' and http_method == 'POST':
+        try:
+            # Parse request body
+            body = json.loads(event.get('body', '{}'))
+            text = body.get('text')
+
+            if not text:
+                logger.warning("Missing 'text' in request body", stage=LogStage.PROCESSING)
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'error': 'Missing required field: text'})
+                }
+
+            logger.info(
+                f"Generating embedding for text ({len(text)} chars)",
+                stage=LogStage.PROCESSING
+            )
+
+            # Generate embedding
+            embedding = embedder_service.embed_text(text)
+
+            if embedding is None:
+                logger.error("Failed to generate embedding", stage=LogStage.PROCESSING)
+                return {
+                    'statusCode': 500,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'error': 'Failed to generate embedding'})
+                }
+
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({
+                    'embedding': embedding,
+                    'model': embedder_service.norm_embedder_service.get_model_name(),
+                    'dimensions': len(embedding),
+                    'timestamp': datetime.now().isoformat()
+                })
+            }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in request body: {e}", stage=LogStage.PROCESSING)
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'Invalid JSON in request body'})
+            }
+        except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+
+            logger.error(
+                f"Error processing /embed request: {type(e).__name__}: {str(e)}",
+                stage=LogStage.PROCESSING,
+                error_type=type(e).__name__,
+                error_message=str(e),
+                traceback=error_traceback[:500]
+            )
+
+            return {
+                'statusCode': 500,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({
+                    'error': str(e),
+                    'error_type': type(e).__name__
+                })
+            }
+
+    # Unsupported endpoint
+    else:
+        logger.warning(
+            f"Unsupported endpoint: {http_method} {path}",
+            stage=LogStage.STARTUP
+        )
+        return {
+            'statusCode': 404,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'error': f'Endpoint not found: {http_method} {path}'})
+        }
+
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """
+    Main Lambda handler: Routes between SQS events and API Gateway events
+
+    Args:
+        event: SQS event with Records array OR API Gateway event with httpMethod and path
         context: Lambda context object
 
     Returns:
-        Processing summary
+        Processing summary for SQS or API Gateway response
     """
     logger.info(
         f"Lambda invoked",
@@ -199,12 +320,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         request_id=context.aws_request_id if context else None
     )
 
+    # Check if this is an API Gateway event
+    if 'httpMethod' in event or ('requestContext' in event and 'http' in event.get('requestContext', {})):
+        logger.info("Routing to API Gateway handler", stage=LogStage.STARTUP)
+        return handle_api_gateway_event(event)
+
     # Validate SQS trigger
     if 'Records' not in event:
-        logger.error("Invalid event: missing Records", stage=LogStage.STARTUP)
+        logger.error("Invalid event: missing Records and not API Gateway", stage=LogStage.STARTUP)
         return {
             'statusCode': 400,
-            'body': json.dumps({'error': 'Invalid event: expected SQS trigger'})
+            'body': json.dumps({'error': 'Invalid event: expected SQS trigger or API Gateway event'})
         }
 
     records = event.get('Records', [])

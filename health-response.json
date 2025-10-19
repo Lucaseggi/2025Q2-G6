@@ -1,0 +1,1 @@
+{"statusCode": 200, "headers": {"Content-Type": "application/json"}, "body": "{\"status\": \"healthy\", \"service\": \"embedding-ms\", \"embedding_model_status\": \"available\", \"timestamp\": \"2025-10-19T22:42:02.102411\"}"}

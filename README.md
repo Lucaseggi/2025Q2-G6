@@ -4,8 +4,38 @@ A microservices-based RAG (Retrieval-Augmented Generation) system for processing
 
 ## Cloud Deploy
 
+### Quick Test Commands
+
+Monitor inserter logs:
+```bash
 aws logs tail /aws/lambda/simpla-inserter --since 5m --format short --region us-east-1 | tail -30
+```
+
+Invoke scraper Lambda:
+```bash
 aws lambda invoke --function-name simpla-scraper --payload fileb:///tmp/scrape-183532.json --region us-east-1 /tmp/scraper-response3.json
+cat /tmp/scraper-response3.json
+```
+
+Test embedder Lambda (health check):
+```bash
+aws lambda invoke \
+  --function-name simpla-embedder \
+  --payload '{"httpMethod":"GET","path":"/health"}' \
+  --cli-binary-format raw-in-base64-out \
+  /tmp/embedder-health.json
+cat /tmp/embedder-health.json | jq -r '.body' | jq '.'
+```
+
+Test embedder Lambda (generate embedding):
+```bash
+aws lambda invoke \
+  --function-name simpla-embedder \
+  --payload '{"httpMethod":"POST","path":"/embed","body":"{\"text\":\"Test legal document about Argentine regulations\"}"}' \
+  --cli-binary-format raw-in-base64-out \
+  /tmp/embedder-embed.json
+cat /tmp/embedder-embed.json | jq -r '.body' | jq '{model, dimensions, timestamp, embedding_sample: .embedding[0:5]}'
+```
 
 ### Prerequisites
 - **Terraform installed**: Download from [terraform.io](https://www.terraform.io/downloads)
