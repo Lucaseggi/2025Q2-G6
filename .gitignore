@@ -96,4 +96,5 @@ utils/rebuilder/norms_dump
 
 DEPLOYMENT_GUIDE.md
 
-dev.env*.jar
+dev.env
+*.jar
