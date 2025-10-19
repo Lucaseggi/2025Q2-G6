@@ -136,15 +136,11 @@ sed -i "s/simpla-\(scraper\|purifier\|processor\)-storage-[0-9]\{12\}/simpla-\1-
 log_info "✓ terraform.tfvars updated"
 echo ""
 
-# Step 0.5: Build and upload guard JARs
-log_step "Step 0.5: Building and uploading guard JARs..."
+# Step 0.5: Build guard JARs
+log_step "Step 0.5: Building guard JARs..."
 
-# Create S3 bucket for lambda artifacts if it doesn't exist
-BUCKET_NAME="simpla-lambda-artifacts"
-if ! aws s3 ls "s3://${BUCKET_NAME}" 2>/dev/null; then
-    log_info "Creating S3 bucket ${BUCKET_NAME}..."
-    aws s3 mb "s3://${BUCKET_NAME}" --region "${AWS_REGION}"
-fi
+# Create lambda-artifacts directory if it doesn't exist
+mkdir -p lambda-artifacts
 
 # Build relational guard JAR
 log_info "Building relational-guard JAR..."
@@ -157,9 +153,9 @@ if [ ! -f "$RELATIONAL_JAR" ]; then
     exit 1
 fi
 
-# Upload relational guard JAR
-log_info "Uploading relational-guard JAR to S3..."
-aws s3 cp "$RELATIONAL_JAR" "s3://${BUCKET_NAME}/relational-guard/relational-guard-1.0.0.jar"
+# Copy relational guard JAR to terraform-lambda
+log_info "Copying relational-guard JAR..."
+cp "$RELATIONAL_JAR" ../terraform-lambda/lambda-artifacts/relational-guard-1.0.0.jar
 
 # Build vectorial guard JAR
 log_info "Building vectorial-guard JAR..."
@@ -172,12 +168,12 @@ if [ ! -f "$VECTORIAL_JAR" ]; then
     exit 1
 fi
 
-# Upload vectorial guard JAR
-log_info "Uploading vectorial-guard JAR to S3..."
-aws s3 cp "$VECTORIAL_JAR" "s3://${BUCKET_NAME}/vectorial-guard/vectorial-guard-1.0.0.jar"
+# Copy vectorial guard JAR to terraform-lambda
+log_info "Copying vectorial-guard JAR..."
+cp "$VECTORIAL_JAR" ../terraform-lambda/lambda-artifacts/vectorial-guard-1.0.0.jar
 
 cd ../terraform-lambda
-log_info "✓ Guard JARs built and uploaded"
+log_info "✓ Guard JARs built and copied"
 echo ""
 
 # Step 1: Deploy to ECR

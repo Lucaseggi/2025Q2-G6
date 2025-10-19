@@ -16,7 +16,7 @@ sys.path.append('/app')
 sys.path.append('/app/shared')
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from src.config.settings import Settings, get_inserter_settings
+from src.config.settings import Settings, get_inserter_settings as _get_inserter_settings
 from rest_storage_client import RestStorageClient
 from storage_client_interface import StorageClientInterface
 
@@ -24,7 +24,7 @@ from storage_client_interface import StorageClientInterface
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance (singleton pattern)"""
-    return get_inserter_settings()
+    return _get_inserter_settings()
 
 
 def get_storage_client() -> StorageClientInterface:
@@ -58,7 +58,3 @@ def get_storage_client() -> StorageClientInterface:
         )
     else:
         raise ValueError(f"Unknown storage client type: {client_type}")
-
-
-# Convenience function for backward compatibility
-get_inserter_settings = get_settings

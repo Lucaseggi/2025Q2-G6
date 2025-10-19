@@ -3,13 +3,16 @@
 # ============================================
 
 resource "aws_s3_bucket" "lambda_artifacts" {
-  bucket = "${var.project_name}-lambda-artifacts"
+  bucket = "${var.project_name}-lambda-artifacts-${data.aws_caller_identity.current.account_id}"
 
   tags = merge(var.tags, {
     Name    = "${var.project_name}-lambda-artifacts"
     Purpose = "Lambda deployment packages"
   })
 }
+
+# Get current AWS account ID
+data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket_versioning" "lambda_artifacts" {
   bucket = aws_s3_bucket.lambda_artifacts.id
