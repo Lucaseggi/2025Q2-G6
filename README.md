@@ -96,6 +96,53 @@ docker compose -f docker-compose.yml -f docker-compose.production.yml -f docker-
 
 Access Grafana: http://localhost:3000 (admin/admin)
 
+### 5. Partial Pipeline (Until Inserter)
+Run only the processing pipeline without the storage guards. Useful for testing the data processing flow.
+
+**Background mode (detached):**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.production.yml up --build -d \
+  localstack \
+  opensearch \
+  scraper \
+  purifier-worker \
+  purifier-api \
+  processor-worker \
+  processor-api \
+  embedder-worker \
+  embedder-api \
+  inserter
+```
+
+**With real-time logs:**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.production.yml up --build \
+  localstack \
+  opensearch \
+  scraper \
+  purifier-worker \
+  purifier-api \
+  processor-worker \
+  processor-api \
+  embedder-worker \
+  embedder-api \
+  inserter
+```
+
+**Minimal (workers only, no APIs):**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.production.yml up --build -d \
+  localstack \
+  opensearch \
+  scraper \
+  purifier-worker \
+  processor-worker \
+  embedder-worker \
+  inserter
+```
+
+> **Note:** The inserter requires relational-guard and vectorial-guard to fully process data. Without them, messages will queue in SQS but won't be stored.
+
 ## Service Endpoints
 
 | Service | URL | Description |

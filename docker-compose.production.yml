@@ -20,7 +20,7 @@ services:
   # Scale purifier workers (2x for production)
   purifier-worker:
     deploy:
-      replicas: 2
+      replicas: 1
       resources:
         limits:
           cpus: '1.0'
@@ -32,7 +32,7 @@ services:
   # Scale processor workers (4x - bottleneck stage with heavy LLM usage)
   processor-worker:
     deploy:
-      replicas: 4
+      replicas: 1
       resources:
         limits:
           cpus: '2.0'
@@ -56,7 +56,7 @@ services:
   # Scale inserter workers (2x for database writes)
   inserter:
     deploy:
-      replicas: 2
+      replicas: 1
       resources:
         limits:
           cpus: '1.0'

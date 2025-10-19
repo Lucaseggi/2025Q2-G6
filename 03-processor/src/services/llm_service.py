@@ -53,14 +53,13 @@ class LLMService(LLMServiceInterface):
 
     def __init__(self, config):
         self.config = config
-        self.current_api_key_index = 0
         self.logger = logging.getLogger(__name__)
 
-        if not self.config.gemini.api_keys:
-            raise ValueError("No Gemini API keys configured")
+        if not self.config.gemini.api_key:
+            raise ValueError("No Gemini API key configured")
 
-        # Initialize with first API key
-        genai.configure(api_key=self.config.gemini.api_keys[0])
+        # Initialize with API key from secrets
+        genai.configure(api_key=self.config.gemini.api_key)
 
     def _load_prompt(self, prompt_name: str) -> str:
         """Helper method to load prompt from file"""
@@ -209,10 +208,8 @@ class LLMService(LLMServiceInterface):
             )
 
     def _rotate_api_key(self):
-        """Rotate to next API key"""
-        if len(self.config.gemini.api_keys) > 1:
-            self.current_api_key_index = (self.current_api_key_index + 1) % len(self.config.gemini.api_keys)
-            genai.configure(api_key=self.config.gemini.api_keys[self.current_api_key_index])
+        """No-op: API key rotation removed (single key only)"""
+        pass
 
     def process_text(self, text: str, context: Optional[Dict[str, Any]] = None) -> InterfaceProcessingResult:
         """Process text through LLM"""
@@ -266,6 +263,6 @@ class LLMService(LLMServiceInterface):
     def is_available(self) -> bool:
         """Check if LLM service is available"""
         try:
-            return bool(self.config.gemini.api_keys)
+            return bool(self.config.gemini.api_key)
         except:
             return False

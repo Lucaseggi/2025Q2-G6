@@ -2,12 +2,9 @@
   "service": {
     "name": "embedding-ms",
     "version": "2.0.0",
-    "port": 8001,
     "debug": false
   },
   "sqs": {
-    "endpoint": "http://localstack:4566",
-    "region": "us-east-1",
     "queues": {
       "input": "embedding",
       "output": "inserting"

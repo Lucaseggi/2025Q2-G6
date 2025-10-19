@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown"""
     # Startup
     logger.info("InfoLeg Enhanced Scraper API started")
-    logger.info(f"Running on port {settings.service.port}")
+    logger.info(f"Running on port {settings.port}")
 
     yield
 

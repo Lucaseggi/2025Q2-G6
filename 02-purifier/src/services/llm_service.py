@@ -27,13 +27,12 @@ class LLMService:
 
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.current_api_key_index = 0
         self.logger = logging.getLogger(__name__)
 
-        if not self.settings.gemini.api_keys:
-            raise ValueError("No Gemini API keys configured")
+        if not self.settings.gemini.api_key:
+            raise ValueError("No Gemini API key configured")
 
-        genai.configure(api_key=self.settings.gemini.api_keys[0])
+        genai.configure(api_key=self.settings.gemini.api_key)
 
     def _load_prompt(self) -> str:
         """Load orthography fix prompt from file"""
@@ -45,10 +44,8 @@ class LLMService:
             raise Exception(f"Could not load orthography fix prompt: {e}")
 
     def _rotate_api_key(self):
-        """Rotate to next API key"""
-        if len(self.settings.gemini.api_keys) > 1:
-            self.current_api_key_index = (self.current_api_key_index + 1) % len(self.settings.gemini.api_keys)
-            genai.configure(api_key=self.settings.gemini.api_keys[self.current_api_key_index])
+        """No-op: API key rotation removed (single key only)"""
+        pass
 
     def _call_gemini_with_retries(self, model_name: str, text: str, system_prompt: str) -> FixResult:
         """Call Gemini API with retries"""
@@ -139,6 +136,6 @@ class LLMService:
     def is_available(self) -> bool:
         """Check if LLM service is available"""
         try:
-            return bool(self.settings.gemini.api_keys)
+            return bool(self.settings.gemini.api_key)
         except:
             return False

@@ -7,7 +7,7 @@ services:
     ports:
       - "4566:4566"  # Main LocalStack port
     environment:
-      - SERVICES=s3,sqs,ssm  # S3 for cache, SQS for queues, SSM for secrets
+      - SERVICES=s3,sqs,secretsmanager  # S3 for cache, SQS for queues, Secrets Manager for secrets
       - DEBUG=1
       - DATA_DIR=/var/lib/localstack
       - DOCKER_HOST=unix:///var/run/docker.sock
@@ -15,6 +15,7 @@ services:
       - localstack-data:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
       - ./00-localstack/init-aws-resources.sh:/etc/localstack/init/ready.d/init-aws-resources.sh
+      - ./00-localstack/dev.env:/etc/localstack/init/ready.d/dev.env
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/localstack-initialized.txt"]
       interval: 5s
@@ -84,8 +85,12 @@ services:
     container_name: scraper
     ports:
       - "8003:8003"
-    env_file:
-      - ./01-scraper/.env
+    environment:
+      # Only credentials needed to access Secrets Manager
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
       localstack:
         condition: service_healthy
@@ -100,8 +105,11 @@ services:
     container_name: purifier-api
     ports:
       - "8004:8004"
-    env_file:
-      - ./02-purifier/.env
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
       localstack:
         condition: service_healthy
@@ -112,8 +120,11 @@ services:
   purifier-worker:
     build: ./02-purifier
     command: ["python", "worker.py"]
-    env_file:
-      - ./02-purifier/.env
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
       localstack:
         condition: service_healthy
@@ -127,8 +138,11 @@ services:
     command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8005"]
     ports:
       - "8005:8005"
-    env_file:
-      - ./03-processor/.env
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
       localstack:
         condition: service_healthy
@@ -139,8 +153,11 @@ services:
   processor-worker:
     build: ./03-processor
     command: ["python", "worker.py"]
-    env_file:
-      - ./03-processor/.env
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
       localstack:
         condition: service_healthy
@@ -154,8 +171,11 @@ services:
     command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8001"]
     ports:
       - "8001:8001"
-    env_file:
-      - ./04-embedder/.env
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
       localstack:
         condition: service_healthy
@@ -168,8 +188,11 @@ services:
   embedder-worker:
     build: ./04-embedder
     command: ["python", "worker.py"]
-    env_file:
-      - ./04-embedder/.env
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
       localstack:
         condition: service_healthy
@@ -181,8 +204,11 @@ services:
 
   inserter:
     build: ./05-inserter
-    env_file:
-      - ./05-inserter/.env
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
       localstack:
         condition: service_healthy

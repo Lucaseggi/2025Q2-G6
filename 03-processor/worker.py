@@ -54,9 +54,9 @@ class DocumentProcessor:
         self.storage_service = StorageService(
             bucket_name=self.config.s3.bucket_name,
             endpoint_url=self.config.s3.endpoint,
-            access_key_id=self.config.s3.access_key_id,
-            secret_access_key=self.config.s3.secret_access_key,
-            region=self.config.s3.region
+            access_key_id=self.config.aws.access_key_id,
+            secret_access_key=self.config.aws.secret_access_key,
+            region=self.config.aws.region
         )
 
         # Initialize main parsing service

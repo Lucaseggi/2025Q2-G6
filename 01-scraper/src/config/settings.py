@@ -1,56 +1,43 @@
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
+# Import shared secrets manager
+sys.path.append('/app/shared')
+from secrets_manager import get_secrets_manager
+
 
 # Nested configuration models for structure
 class ServiceConfig(BaseModel):
-    """Service configuration"""
+    """Service configuration (non-sensitive)"""
     name: str = "enhanced-scraper-ms"
     version: str = "2.0.0"
-    port: int = Field(ge=1, le=65535)
     debug: bool = False
 
 
 class SQSConfig(BaseModel):
     """SQS configuration"""
-    endpoint: Optional[str] = None
-    region: str = "us-east-1"
-    queues: Dict[str, str]
-
-    @model_validator(mode='before')
-    def override_from_env(cls, values):
-        """Override with environment variables (for Lambda)"""
-        if os.getenv('SQS_ENDPOINT'):
-            values['endpoint'] = os.getenv('SQS_ENDPOINT')
-        if os.getenv('AWS_DEFAULT_REGION'):
-            values['region'] = os.getenv('AWS_DEFAULT_REGION')
-        if os.getenv('PURIFYING_QUEUE_NAME') and 'queues' in values:
-            values['queues']['output'] = os.getenv('PURIFYING_QUEUE_NAME')
-        return values
+    endpoint: str  # From secrets
+    region: str  # From secrets
+    queues: Dict[str, str]  # Logical queue names
 
 
 class S3Config(BaseModel):
     """S3 configuration"""
-    bucket_name: str
-    endpoint: Optional[str] = None
-    region: str = "us-east-1"
-    access_key_id: str = ""  # Will be set from environment
-    secret_access_key: str = ""  # Will be set from environment
+    bucket_name: str  # From secrets
+    endpoint: str  # From secrets
+    region: str  # From secrets
 
-    @model_validator(mode='before')
-    def override_from_env(cls, values):
-        """Override with environment variables (for Lambda)"""
-        if os.getenv('S3_BUCKET_NAME'):
-            values['bucket_name'] = os.getenv('S3_BUCKET_NAME')
-        if os.getenv('S3_ENDPOINT'):
-            values['endpoint'] = os.getenv('S3_ENDPOINT')
-        if os.getenv('AWS_DEFAULT_REGION'):
-            values['region'] = os.getenv('AWS_DEFAULT_REGION')
-        return values
+
+class AWSCredentials(BaseModel):
+    """AWS credentials (from secrets)"""
+    access_key_id: str
+    secret_access_key: str
+    region: str
 
 
 class InfolegApiEndpoints(BaseModel):
@@ -77,46 +64,85 @@ class InfolegApiConfig(BaseModel):
 
 
 class Settings(BaseSettings):
-    """Application configuration settings with JSON + env support"""
+    """Application configuration settings with JSON + Secrets Manager support"""
 
     # Structured configuration
     service: ServiceConfig
     sqs: SQSConfig
     s3: S3Config
+    aws: AWSCredentials
     infoleg_api: InfolegApiConfig
 
+    # Service-specific runtime config
+    port: int = Field(ge=1, le=65535)
+
     model_config = {
-        "env_file": ".env",
-        "env_file_encoding": "utf-8",
         "case_sensitive": False,
-        "extra": "ignore"  # Ignore extra fields instead of raising error
+        "extra": "ignore"
     }
 
     @model_validator(mode='before')
-    def load_json_config(cls, values):
-        """Load configuration from JSON file and merge with env vars"""
+    def load_config(cls, values):
+        """Load configuration from config.json + AWS Secrets Manager"""
+        # 1. Load algorithm parameters from config.json
         config_path = Path("config.json")
-
         if config_path.exists():
             with open(config_path) as f:
                 json_config = json.load(f)
 
-            # Merge JSON config with any provided values (env vars take precedence)
+            # Merge JSON config (non-sensitive params)
             for key, value in json_config.items():
                 if key not in values:
                     values[key] = value
 
-        # Add environment variables for nested configs
-        if 's3' in values and isinstance(values['s3'], dict):
-            aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-            aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-            if aws_access_key:
-                values['s3']['access_key_id'] = aws_access_key
-            if aws_secret_key:
-                values['s3']['secret_access_key'] = aws_secret_key
+        # 2. Load sensitive data from AWS Secrets Manager
+        try:
+            secrets = get_secrets_manager()
+
+            # Get AWS config
+            aws_config = secrets.get_secret('simpla/shared/aws-config')
+            values['aws'] = {
+                'access_key_id': aws_config['aws_access_key_id'],
+                'secret_access_key': aws_config['aws_secret_access_key'],
+                'region': aws_config['aws_region']
+            }
+
+            # Get queue names
+            queue_names = secrets.get_secret('simpla/shared/queue-names')
+
+            # Get S3 buckets
+            s3_buckets = secrets.get_secret('simpla/shared/s3-buckets')
+
+            # Get service config
+            service_config = secrets.get_secret('simpla/services/config')
+
+            # Build SQS config
+            if 'sqs' not in values:
+                values['sqs'] = {}
+            values['sqs']['endpoint'] = aws_config['sqs_endpoint']
+            values['sqs']['region'] = aws_config['aws_region']
+            if 'queues' not in values['sqs']:
+                values['sqs']['queues'] = {}
+            # Map logical queue name to actual queue name
+            if 'output' in values.get('sqs', {}).get('queues', {}):
+                logical_name = values['sqs']['queues']['output']
+                values['sqs']['queues']['output'] = queue_names.get(logical_name, logical_name)
+
+            # Build S3 config
+            if 's3' not in values:
+                values['s3'] = {}
+            values['s3']['bucket_name'] = s3_buckets['scraper_bucket']
+            values['s3']['endpoint'] = aws_config['s3_endpoint']
+            values['s3']['region'] = aws_config['aws_region']
+
+            # Get service port
+            values['port'] = service_config['scraper_port']
+
+        except Exception as e:
+            # Fallback: SecretsManager will use environment variables
+            print(f"Warning: Could not load from Secrets Manager, using env fallback: {e}")
 
         return values
-
 
 
 def get_settings() -> Settings:

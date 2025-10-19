@@ -95,3 +95,5 @@ terraform/terraform.exe
 utils/rebuilder/norms_dump
 
 DEPLOYMENT_GUIDE.md
+
+dev.env

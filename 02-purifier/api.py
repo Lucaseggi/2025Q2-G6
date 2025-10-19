@@ -17,7 +17,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown"""
     logger.info("Purifier API started")
-    logger.info(f"Running on port {settings.service.port}")
+    logger.info(f"Running on port {settings.port}")
 
     yield
 

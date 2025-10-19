@@ -23,9 +23,9 @@ class CacheService(CacheInterface):
         self.s3_client = boto3.client(
             's3',
             endpoint_url=self.s3_endpoint,
-            aws_access_key_id=settings.s3.access_key_id,
-            aws_secret_access_key=settings.s3.secret_access_key,
-            region_name=settings.s3.region
+            aws_access_key_id=settings.aws.access_key_id,
+            aws_secret_access_key=settings.aws.secret_access_key,
+            region_name=settings.aws.region
         )
 
         # Initialize bucket

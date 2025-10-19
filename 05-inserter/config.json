@@ -1,0 +1,26 @@
+{
+  "service": {
+    "name": "inserter-ms",
+    "version": "2.0.0",
+    "debug": false
+  },
+  "sqs": {
+    "queues": {
+      "input": "inserting"
+    }
+  },
+  "storage": {
+    "default_client_type": "rest",
+    "timeout_seconds": 30,
+    "max_retries": 3,
+    "retry_delay_seconds": 1
+  },
+  "grpc": {
+    "relational_service": {
+      "timeout_seconds": 30
+    },
+    "vectorial_service": {
+      "timeout_seconds": 30
+    }
+  }
+}

@@ -1,4 +1,4 @@
-"""Configuration settings for the embedding service with Secrets Manager support"""
+"""Configuration settings for the inserter service with Secrets Manager support"""
 
 import json
 import os
@@ -8,6 +8,7 @@ from functools import lru_cache
 from typing import Dict
 from pydantic import BaseModel, Field
 
+
 # Import shared secrets manager
 sys.path.append('/app/shared')
 from secrets_manager import get_secrets_manager
@@ -15,7 +16,7 @@ from secrets_manager import get_secrets_manager
 
 class ServiceConfig(BaseModel):
     """Service configuration (non-sensitive)"""
-    name: str = "embedding-ms"
+    name: str = "inserter-ms"
     version: str = "2.0.0"
     debug: bool = False
 
@@ -23,7 +24,6 @@ class ServiceConfig(BaseModel):
 class SQSQueues(BaseModel):
     """SQS queue names (logical)"""
     input: str
-    output: str
 
 
 class SQSConfig(BaseModel):
@@ -40,13 +40,23 @@ class AWSCredentials(BaseModel):
     region: str
 
 
-class EmbeddingConfig(BaseModel):
-    """Embedding configuration (algorithm parameters from config.json)"""
-    embedding_model_name: str
-    output_dimensionality: int
-    provider: str
-    max_retries: int = 5
-    api_key: str  # From secrets
+class StorageConfig(BaseModel):
+    """Storage configuration (algorithm parameters from config.json)"""
+    default_client_type: str
+    timeout_seconds: int
+    max_retries: int
+    retry_delay_seconds: int
+
+
+class GrpcServiceConfig(BaseModel):
+    """gRPC service configuration"""
+    timeout_seconds: int
+
+
+class GrpcConfig(BaseModel):
+    """gRPC configuration (algorithm parameters from config.json)"""
+    relational_service: GrpcServiceConfig
+    vectorial_service: GrpcServiceConfig
 
 
 class Settings(BaseModel):
@@ -54,10 +64,15 @@ class Settings(BaseModel):
     service: ServiceConfig
     sqs: SQSConfig
     aws: AWSCredentials
-    embedding: EmbeddingConfig
+    storage: StorageConfig
+    grpc: GrpcConfig
 
-    # Service-specific runtime config
-    port: int = Field(ge=1, le=65535)
+    # Service runtime config from secrets
+    opensearch_endpoint: str
+    relational_host: str = "relational-guard"
+    relational_port: int = 50051
+    vectorial_host: str = "vectorial-guard"
+    vectorial_port: int = 50052
 
 
 def load_config() -> Settings:
@@ -99,9 +114,6 @@ def load_config() -> Settings:
         # Get service config
         service_config = secrets.get_secret('simpla/services/config')
 
-        # Get API keys
-        gemini_keys = secrets.get_secret('simpla/api-keys/gemini')
-
         # Build SQS config
         sqs_queues = json_config.get('sqs', {}).get('queues', {})
         # Map logical queue names to actual queue names
@@ -115,17 +127,19 @@ def load_config() -> Settings:
             'queues': mapped_queues
         }
 
-        # Add Gemini API key to embedding config
-        embedding_config = json_config.get('embedding', {})
-        embedding_config['api_key'] = gemini_keys['api_key']
-
         # Build final config
         config_data = {
             'service': json_config.get('service', {}),
             'sqs': sqs_config,
             'aws': aws_credentials,
-            'embedding': embedding_config,
-            'port': service_config['embedder_port']
+            'storage': json_config.get('storage', {}),
+            'grpc': json_config.get('grpc', {}),
+            'opensearch_endpoint': service_config['opensearch_endpoint'],
+            # gRPC hosts and ports could be in secrets too, but using defaults for now
+            'relational_host': os.getenv('RELATIONAL_MS_HOST', 'relational-guard'),
+            'relational_port': int(os.getenv('RELATIONAL_MS_PORT', '50051')),
+            'vectorial_host': os.getenv('VECTORIAL_MS_HOST', 'vectorial-guard'),
+            'vectorial_port': int(os.getenv('VECTORIAL_MS_PORT', '50052'))
         }
 
         return Settings(**config_data)
@@ -148,15 +162,17 @@ def load_config() -> Settings:
             'region': os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
         }
 
-        embedding_config = json_config.get('embedding', {})
-        embedding_config['api_key'] = os.getenv('GEMINI_API_KEY', '')
-
         config_data = {
             'service': json_config.get('service', {}),
             'sqs': sqs_config,
             'aws': aws_credentials,
-            'embedding': embedding_config,
-            'port': int(os.getenv('EMBEDDER_PORT', '8001'))
+            'storage': json_config.get('storage', {}),
+            'grpc': json_config.get('grpc', {}),
+            'opensearch_endpoint': os.getenv('OPENSEARCH_ENDPOINT', 'http://opensearch:9200'),
+            'relational_host': os.getenv('RELATIONAL_MS_HOST', 'relational-guard'),
+            'relational_port': int(os.getenv('RELATIONAL_MS_PORT', '50051')),
+            'vectorial_host': os.getenv('VECTORIAL_MS_HOST', 'vectorial-guard'),
+            'vectorial_port': int(os.getenv('VECTORIAL_MS_PORT', '50052'))
         }
 
         return Settings(**config_data)

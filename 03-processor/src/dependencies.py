@@ -45,9 +45,9 @@ def get_storage_service() -> StorageService:
     return StorageService(
         bucket_name=settings.s3.bucket_name,
         endpoint_url=settings.s3.endpoint,
-        access_key_id=settings.s3.access_key_id,
-        secret_access_key=settings.s3.secret_access_key,
-        region=settings.s3.region
+        access_key_id=settings.aws.access_key_id,
+        secret_access_key=settings.aws.secret_access_key,
+        region=settings.aws.region
     )
 
 
