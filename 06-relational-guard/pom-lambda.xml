@@ -31,10 +31,21 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Spring Boot web with embedded Tomcat for standalone mode -->
+        <!-- Spring Boot core -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-tomcat</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
             <exclusions>
                 <exclusion>
                     <groupId>org.springframework.boot</groupId>
@@ -76,6 +87,26 @@
             <version>6.0.53</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- AWS Lambda core dependencies -->
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-core</artifactId>
+            <version>1.2.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-events</artifactId>
+            <version>3.11.3</version>
+        </dependency>
+
+        <!-- AWS Serverless Java Container for Spring Boot -->
+        <dependency>
+            <groupId>com.amazonaws.serverless</groupId>
+            <artifactId>aws-serverless-java-container-springboot3</artifactId>
+            <version>2.0.1</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -94,12 +125,11 @@
                         <exclude>**/RelationalServer.java</exclude>
                         <exclude>**/RelationalClient.java</exclude>
                         <exclude>**/RelationalServiceImpl.java</exclude>
-                        <exclude>**/lambda/**</exclude>
                     </excludes>
                 </configuration>
             </plugin>
 
-            <!-- Shade plugin for standalone JAR -->
+            <!-- Shade plugin for AWS Lambda - packages all dependencies in a flat structure -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -107,7 +137,7 @@
                 <configuration>
                     <createDependencyReducedPom>false</createDependencyReducedPom>
                     <transformers>
-                        <!-- Add Main-Class to manifest -->
+                        <!-- Add Main-Class to manifest for Docker mode (ignored by Lambda) -->
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                             <mainClass>${main.class}</mainClass>
                         </transformer>
@@ -135,12 +165,10 @@
                                 <exclude>META-INF/*.SF</exclude>
                                 <exclude>META-INF/*.DSA</exclude>
                                 <exclude>META-INF/*.RSA</exclude>
-                                <!-- Exclude gRPC/protobuf (not needed for REST API) -->
+                                <!-- Exclude gRPC/protobuf (not needed for API Lambda) -->
                                 <exclude>io/grpc/**</exclude>
                                 <exclude>com/google/protobuf/**</exclude>
                                 <exclude>com/simpla/relational/proto/**</exclude>
-                                <!-- Exclude Lambda handler -->
-                                <exclude>com/simpla/relational/lambda/**</exclude>
                             </excludes>
                         </filter>
                     </filters>
@@ -151,6 +179,14 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <artifactSet>
+                                <excludes>
+                                    <!-- Exclude Tomcat since Lambda provides its own runtime -->
+                                    <exclude>org.apache.tomcat.embed:*</exclude>
+                                </excludes>
+                            </artifactSet>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

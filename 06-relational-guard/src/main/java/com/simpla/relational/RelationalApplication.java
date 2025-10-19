@@ -40,6 +40,9 @@ public class RelationalApplication {
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(RelationalApplication.class, args);
+        SpringApplication app = new SpringApplication(RelationalApplication.class);
+        // Ensure port 8090 is used
+        app.setDefaultProperties(java.util.Collections.singletonMap("server.port", "8090"));
+        app.run(args);
     }
 }
