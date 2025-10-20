@@ -1,9 +1,13 @@
 # S3 Buckets for Simpla Pipeline
 # Creates cache/storage buckets for scraper, purifier, and processor
-
+resource "random_string" "bucket_suffix" {
+  length  = 8
+  upper   = false
+  special = false
+}
 # Scraper Storage Bucket
 resource "aws_s3_bucket" "scraper_storage" {
-  bucket = var.scraper_bucket_name
+  bucket = "${var.scraper_bucket_name}-${random_string.bucket_suffix.result}"
 
   tags = {
     Name        = "simpla-scraper-storage"
@@ -53,7 +57,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "scraper_storage" {
 
 # Purifier Storage Bucket
 resource "aws_s3_bucket" "purifier_storage" {
-  bucket = var.purifier_bucket_name
+  bucket = "${var.purifier_bucket_name}-${random_string.bucket_suffix.result}"
 
   tags = {
     Name        = "simpla-purifier-storage"
@@ -103,7 +107,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "purifier_storage" {
 
 # Processor Storage Bucket
 resource "aws_s3_bucket" "processor_storage" {
-  bucket = var.processor_bucket_name
+  bucket = "${var.processor_bucket_name}-${random_string.bucket_suffix.result}"
 
   tags = {
     Name        = "simpla-processor-storage"

@@ -135,14 +135,63 @@ variable "lambda_timeout" {
 # Database and Vector Store Endpoints
 # NOTE: These will be created by infrastructure team, but we provide variables
 # for temporary configuration during development
-variable "postgres_host" {
-  description = "PostgreSQL database host (will be RDS endpoint)"
+variable "postgres_port" {
+  description = "PostgreSQL database port"
   type        = string
-  default     = "localhost"  # Placeholder - will fail until real RDS is created
+  default     = "5432"
+}
+
+variable "postgres_db" {
+  description = "PostgreSQL database name"
+  type        = string
+  default     = "postgres"
+}
+
+variable "postgres_user" {
+  description = "PostgreSQL database user"
+  type        = string
+  default     = "postgres"
+}
+
+variable "postgres_password" {
+  description = "PostgreSQL database password"
+  type        = string
+  sensitive   = true
+  default     = "postgres123"
 }
 
 variable "opensearch_host" {
   description = "OpenSearch host (will be OpenSearch/Milvus endpoint)"
   type        = string
   default     = "localhost"  # Placeholder - will fail until real OpenSearch is created
+}
+
+variable vpc_cidr {}
+variable public_subnet_1_cidr  {}
+variable public_subnet_2_cidr  {}
+variable private_subnet_1_cidr {}
+variable private_subnet_2_cidr {}
+variable private_subnet_3_cidr {}
+variable private_subnet_4_cidr {}
+variable api_sg_name {}
+variable priv_sg_name  {}
+variable vdb_sg_name {}
+
+variable "relational_db_name" {
+  type=string
+  default="simpla_rag"
+}
+variable "rds_engine"{
+  type=string
+  default="postgres"
+}
+
+variable "rds_engine_version"{
+  type=string
+  default="16"
+}
+
+variable "rds_instance_class"{
+  type=string
+  default="db.t3.medium"
 }

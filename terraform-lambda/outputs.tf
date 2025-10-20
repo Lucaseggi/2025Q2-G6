@@ -173,3 +173,15 @@ output "lambda_role_name" {
   description = "Name of the Lambda execution role (using LabRole)"
   value       = data.aws_iam_role.lab_role.name
 }
+output "relational_db_private_ip"{
+  value       =  module.rds.db_instance_address
+}
+output "relational_db_user"{
+  sensitive   =  true
+  value       =  module.rds.db_instance_username
+}
+output relational_db_password {
+  sensitive   = true
+  value       = var.postgres_password
+}
+
