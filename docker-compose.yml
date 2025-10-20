@@ -274,6 +274,28 @@ services:
     networks:
       - rag-network
 
+  answer-generator:
+    build: ./answer-generator
+    container_name: answer-generator
+    ports:
+      - "8042:8042"
+    environment:
+      - SERVICE_PORT=8042
+      - EMBEDDER_API_HOST=http://embedder-api:8001
+      - VECTORIAL_API_HOST=http://vectorial-guard:8080
+      - RELATIONAL_API_HOST=http://relational-guard:8090
+      - DEFAULT_SEARCH_LIMIT=5
+    depends_on:
+      embedder-api:
+        condition: service_started
+      relational-guard:
+        condition: service_started
+      vectorial-guard:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - rag-network
+
   # frontend:
   #   build: ./frontend
   #   container_name: frontend
