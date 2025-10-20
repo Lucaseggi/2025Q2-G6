@@ -107,35 +107,7 @@ resource "aws_lambda_function" "processor" {
   }
 }
 
-# Embedder Lambda (handles both SQS and API Gateway triggers)
-resource "aws_lambda_function" "embedder" {
-  function_name = "simpla-embedder"
-  role          = data.aws_iam_role.lab_role.arn
-  package_type  = "Image"
-  image_uri     = var.embedder_image_uri
-  timeout       = 300
-  memory_size   = 1024
-
-  environment {
-    variables = {
-      SECRETS_MANAGER_ENDPOINT = ""
-    }
-  }
-
-  depends_on = [
-    aws_secretsmanager_secret_version.aws_config,
-    aws_secretsmanager_secret_version.queue_names,
-    aws_secretsmanager_secret_version.s3_buckets,
-    aws_secretsmanager_secret_version.gemini_api_key,
-    aws_secretsmanager_secret_version.services_config
-  ]
-
-  tags = {
-    Name        = "simpla-embedder"
-    Environment = var.environment
-    Service     = "embedder"
-  }
-}
+# Embedder Lambda is now defined in lambda-embedder-api.tf using the lambda-api module
 
 # Inserter Lambda (handles SQS triggers)
 resource "aws_lambda_function" "inserter" {

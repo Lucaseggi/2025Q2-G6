@@ -42,7 +42,7 @@ resource "aws_lambda_event_source_mapping" "processor_sqs" {
 # Embedder Lambda - triggered by messages in embedding queue
 resource "aws_lambda_event_source_mapping" "embedder_sqs" {
   event_source_arn = aws_sqs_queue.embedding.arn
-  function_name    = aws_lambda_function.embedder.arn
+  function_name    = module.embedder_api.lambda_function_arn
 
   # Batch settings - can process multiple embeddings in parallel
   batch_size                         = 5  # Process up to 5 at once

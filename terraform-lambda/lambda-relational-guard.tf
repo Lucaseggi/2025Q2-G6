@@ -19,12 +19,11 @@ module "relational_guard" {
   timeout          = var.lambda_timeout
 
   environment_variables = {
-    # PostgreSQL Configuration (temporary - will move to Secrets Manager)
-    POSTGRES_DB       = "simpla_rag"
-    POSTGRES_USER     = "postgres"
-    POSTGRES_PASSWORD = "postgres123"
     POSTGRES_HOST     = var.postgres_host
-    POSTGRES_PORT     = "5432"
+    POSTGRES_PORT     = var.postgres_port
+    POSTGRES_DB       = var.postgres_db
+    POSTGRES_USER     = var.postgres_user
+    POSTGRES_PASSWORD = var.postgres_password
   }
 }
 

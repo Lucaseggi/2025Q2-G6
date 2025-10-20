@@ -132,17 +132,67 @@ variable "lambda_timeout" {
   default     = 30
 }
 
-# Database and Vector Store Endpoints
-# NOTE: These will be created by infrastructure team, but we provide variables
-# for temporary configuration during development
-variable "postgres_host" {
-  description = "PostgreSQL database host (will be RDS endpoint)"
+# Database Configuration Variables
+variable "postgres_host" {}
+
+variable "postgres_port" {
+  description = "PostgreSQL database port"
   type        = string
-  default     = "localhost"  # Placeholder - will fail until real RDS is created
+  default     = "5432"
+}
+
+variable "postgres_db" {
+  description = "PostgreSQL database name"
+  type        = string
+  default     = "postgres"
+}
+
+variable "postgres_user" {
+  description = "PostgreSQL database user"
+  type        = string
+  default     = "postgres"
+}
+
+variable "postgres_password" {
+  description = "PostgreSQL database password"
+  type        = string
+  sensitive   = true
+}
+
+# Database and Vector Store Endpoints
+variable "vector_store_type" {
+  description = "Type of vector store to use (pinecone or opensearch)"
+  type        = string
+  default     = "pinecone"
+}
+
+variable "pinecone_api_key" {
+  description = "Pinecone API key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "pinecone_index" {
+  description = "Pinecone index name"
+  type        = string
+  default     = "simpla-vectors"
 }
 
 variable "opensearch_host" {
-  description = "OpenSearch host (will be OpenSearch/Milvus endpoint)"
+  description = "OpenSearch host URL"
   type        = string
-  default     = "localhost"  # Placeholder - will fail until real OpenSearch is created
+  default     = ""
+}
+
+variable "opensearch_port" {
+  description = "OpenSearch port"
+  type        = string
+  default     = "443"
+}
+
+variable "opensearch_index" {
+  description = "OpenSearch index name"
+  type        = string
+  default     = "simpla-vectors"
 }

@@ -42,6 +42,22 @@ variable "runtime" {
   default     = "java17"
 }
 
+variable "package_type" {
+  description = "Lambda deployment package type (Zip or Image)"
+  type        = string
+  default     = "Zip"
+  validation {
+    condition     = contains(["Zip", "Image"], var.package_type)
+    error_message = "package_type must be either 'Zip' or 'Image'"
+  }
+}
+
+variable "image_uri" {
+  description = "ECR image URI for Lambda function (used when package_type is Image)"
+  type        = string
+  default     = null
+}
+
 variable "memory_size" {
   description = "Memory size for Lambda function in MB"
   type        = number
