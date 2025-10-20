@@ -129,7 +129,36 @@ resource "aws_secretsmanager_secret_version" "services_config" {
   })
 }
 
-# 6. Guard API Endpoints Secret
+# 6. Embedder API Endpoints Secret
+# This secret stores the API Gateway URLs for the embedder service
+# Other services can read these URLs to connect to the embedder
+resource "aws_secretsmanager_secret" "embedder_endpoints" {
+  name        = "simpla/services/embedder-endpoints"
+  description = "API Gateway endpoints for embedder service"
+
+  tags = {
+    Name        = "simpla-embedder-endpoints"
+    Environment = var.environment
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "embedder_endpoints" {
+  secret_id = aws_secretsmanager_secret.embedder_endpoints.id
+
+  secret_string = jsonencode({
+    # Full API URLs including endpoints
+    embedder_api_url = module.embedder_api.api_endpoint
+    health_endpoint  = "${module.embedder_api.api_endpoint}/health"
+    embed_endpoint   = "${module.embedder_api.api_endpoint}/embed"
+  })
+
+  # Ensure embedder is deployed before creating the secret
+  depends_on = [
+    module.embedder_api
+  ]
+}
+
+# 7. Guard API Endpoints Secret
 # This secret stores the API Gateway URLs for relational and vectorial guards
 # These are automatically populated from the guard Lambda deployments
 # The inserter service reads these URLs to connect to the guards
@@ -156,5 +185,34 @@ resource "aws_secretsmanager_secret_version" "guard_endpoints" {
   depends_on = [
     module.relational_guard,
     module.vectorial_guard
+  ]
+}
+
+# 8. Answer Generator Endpoints Secret
+# This secret stores the API Gateway URLs for answer generator service
+# Other services can read these URLs to connect to the answer generator
+resource "aws_secretsmanager_secret" "answer_generator_endpoints" {
+  name        = "simpla/services/answer-generator-endpoints"
+  description = "API Gateway endpoints for answer generator service"
+
+  tags = {
+    Name        = "simpla-answer-generator-endpoints"
+    Environment = var.environment
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "answer_generator_endpoints" {
+  secret_id = aws_secretsmanager_secret.answer_generator_endpoints.id
+
+  secret_string = jsonencode({
+    # Full API URLs including endpoints
+    answer_generator_api_url = module.answer_generator_api.api_endpoint
+    health_endpoint          = "${module.answer_generator_api.api_endpoint}/health"
+    question_endpoint        = "${module.answer_generator_api.api_endpoint}/question"
+  })
+
+  # Ensure answer generator is deployed before creating the secret
+  depends_on = [
+    module.answer_generator_api
   ]
 }

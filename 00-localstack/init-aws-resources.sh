@@ -87,13 +87,31 @@ awslocal secretsmanager create-secret \
         \"inserter_storage_client_type\": \"${STORAGE_CLIENT_TYPE:-rest}\"
     }" 2>&1 | grep -v "ResourceExistsException" || echo "  → services config exists, skipping"
 
-# 6. simpla/services/guard-endpoints (for REST API mode)
+# 6. simpla/services/embedder-endpoints (for embedder service)
+awslocal secretsmanager create-secret \
+    --name "simpla/services/embedder-endpoints" \
+    --secret-string "{
+        \"embedder_api_url\": \"${EMBEDDER_API_URL:-http://embedder-api:8001}\",
+        \"health_endpoint\": \"${EMBEDDER_API_URL:-http://embedder-api:8001}/health\",
+        \"embed_endpoint\": \"${EMBEDDER_API_URL:-http://embedder-api:8001}/embed\"
+    }" 2>&1 | grep -v "ResourceExistsException" || echo "  → embedder-endpoints exists, skipping"
+
+# 7. simpla/services/guard-endpoints (for REST API mode)
 awslocal secretsmanager create-secret \
     --name "simpla/services/guard-endpoints" \
     --secret-string "{
         \"relational_api_url\": \"${RELATIONAL_API_URL:-http://relational-guard:8090/api/v1/relational}\",
         \"vectorial_api_url\": \"${VECTORIAL_API_URL:-http://vectorial-guard:8080/api/v1/vectorial}\"
     }" 2>&1 | grep -v "ResourceExistsException" || echo "  → guard-endpoints exists, skipping"
+
+# 8. simpla/services/answer-generator-endpoints (for answer-generator service)
+awslocal secretsmanager create-secret \
+    --name "simpla/services/answer-generator-endpoints" \
+    --secret-string "{
+        \"answer_generator_api_url\": \"${ANSWER_GENERATOR_API_URL:-http://answer-generator:8042}\",
+        \"health_endpoint\": \"${ANSWER_GENERATOR_API_URL:-http://answer-generator:8042}/health\",
+        \"question_endpoint\": \"${ANSWER_GENERATOR_API_URL:-http://answer-generator:8042}/question\"
+    }" 2>&1 | grep -v "ResourceExistsException" || echo "  → answer-generator-endpoints exists, skipping"
 
 echo "✓ Secrets Manager secrets created"
 

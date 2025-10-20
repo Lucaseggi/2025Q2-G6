@@ -118,7 +118,9 @@ SECRETS=(
     "simpla/shared/s3-buckets"
     "simpla/api-keys/gemini"
     "simpla/services/config"
+    "simpla/services/embedder-endpoints"
     "simpla/services/guard-endpoints"
+    "simpla/services/answer-generator-endpoints"
 )
 
 for SECRET_NAME in "${SECRETS[@]}"; do

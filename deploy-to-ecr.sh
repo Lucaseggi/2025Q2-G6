@@ -40,11 +40,12 @@ Usage: ./deploy-to-ecr.sh [OPTIONS] SERVICE
 Deploy microservices to ECR for AWS Lambda deployment.
 
 SERVICES:
-  processor    - 03-processor (LLM-based document structuring)
-  purifier     - 02-purifier (Text cleaning and purification)
-  scraper      - 01-scraper (Web scraping service)
-  embedder     - 04-embedder (Text embedding service)
-  all          - Deploy all services
+  processor         - 03-processor (LLM-based document structuring)
+  purifier          - 02-purifier (Text cleaning and purification)
+  scraper           - 01-scraper (Web scraping service)
+  embedder          - 04-embedder (Text embedding service)
+  answer-generator  - answer-generator (RAG-based question answering)
+  all               - Deploy all services
 
 OPTIONS:
   -r, --region REGION        AWS region (default: us-east-1)
@@ -79,6 +80,7 @@ declare -A SERVICE_DIRS=(
     ["scraper"]="01-scraper"
     ["embedder"]="04-embedder"
     ["inserter"]="05-inserter"
+    ["answer-generator"]="answer-generator"
 )
 
 declare -A SERVICE_REPOS=(
@@ -87,6 +89,7 @@ declare -A SERVICE_REPOS=(
     ["scraper"]="simpla-scraper"
     ["embedder"]="simpla-embedder"
     ["inserter"]="simpla-inserter"
+    ["answer-generator"]="simpla-answer-generator"
 )
 
 declare -A SERVICE_LAMBDA_NAMES=(
@@ -95,6 +98,7 @@ declare -A SERVICE_LAMBDA_NAMES=(
     ["scraper"]="simpla-scraper"
     ["embedder"]="simpla-embedder"
     ["inserter"]="simpla-inserter"
+    ["answer-generator"]="simpla-answer-generator"
 )
 
 # Parse command line arguments

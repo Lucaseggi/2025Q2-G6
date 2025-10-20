@@ -31,6 +31,11 @@ variable "embedder_image_uri" {
   type        = string
 }
 
+variable "answer_generator_image_uri" {
+  description = "ECR image URI for answer generator Lambda"
+  type        = string
+}
+
 variable "inserter_image_uri" {
   description = "ECR image URI for inserter Lambda"
   type        = string
