@@ -12,23 +12,19 @@ from shared.structured_logger import StructuredLogger, LogStage
 import functools
 print = functools.partial(print, flush=True)
 
-# Import storage clients
-from grpc_storage_client import GrpcStorageClient
-from rest_storage_client import RestStorageClient
+# Add src to path for dependency injection
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+
+# Import dependencies
+from src.dependencies import get_storage_client, get_settings
 
 logger = StructuredLogger("inserter", "worker")
 
 
 def create_storage_client():
-    """Create storage client based on environment variable."""
-    client_type = os.getenv('STORAGE_CLIENT_TYPE', 'rest').lower()
-
-    if client_type == 'rest':
-        logger.info("Using REST API storage client", stage=LogStage.STARTUP)
-        return RestStorageClient()
-    else:
-        logger.info("Using gRPC storage client", stage=LogStage.STARTUP)
-        return GrpcStorageClient()
+    """Create storage client using dependency injection."""
+    # Use dependency injection pattern (reads from settings)
+    return get_storage_client()
 
 def parse_numero_to_int(numero_str):
     """Parse numero field to integer, return -1 if unparseable"""

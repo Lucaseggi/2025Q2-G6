@@ -87,6 +87,14 @@ awslocal secretsmanager create-secret \
         \"inserter_storage_client_type\": \"${STORAGE_CLIENT_TYPE:-rest}\"
     }" 2>&1 | grep -v "ResourceExistsException" || echo "  → services config exists, skipping"
 
+# 6. simpla/services/guard-endpoints (for REST API mode)
+awslocal secretsmanager create-secret \
+    --name "simpla/services/guard-endpoints" \
+    --secret-string "{
+        \"relational_api_url\": \"${RELATIONAL_API_URL:-http://relational-guard:8090/api/v1/relational}\",
+        \"vectorial_api_url\": \"${VECTORIAL_API_URL:-http://vectorial-guard:8080/api/v1/vectorial}\"
+    }" 2>&1 | grep -v "ResourceExistsException" || echo "  → guard-endpoints exists, skipping"
+
 echo "✓ Secrets Manager secrets created"
 
 # List resources to verify
