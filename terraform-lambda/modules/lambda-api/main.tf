@@ -5,18 +5,26 @@
 # Designed for Spring Boot applications packaged with maven-shade-plugin
 
 resource "aws_lambda_function" "this" {
-  # Use S3 if bucket and key are provided, otherwise use local file
-  filename         = var.s3_bucket == null ? var.jar_path : null
-  s3_bucket        = var.s3_bucket
-  s3_key           = var.s3_key
-
   function_name    = "${var.project_name}-${var.service_name}"
   role            = var.lambda_role_arn
-  handler         = var.handler
-  source_code_hash = var.s3_bucket == null ? filebase64sha256(var.jar_path) : null
-  runtime         = var.runtime
   memory_size     = var.memory_size
   timeout         = var.timeout
+
+  # Package type: either Image (Docker) or Zip (JAR/code)
+  package_type = var.package_type
+
+  # For Docker images
+  image_uri = var.package_type == "Image" ? var.image_uri : null
+
+  # For Zip packages (JAR files)
+  filename         = var.package_type == "Zip" && var.s3_bucket == null ? var.jar_path : null
+  s3_bucket        = var.package_type == "Zip" ? var.s3_bucket : null
+  s3_key           = var.package_type == "Zip" ? var.s3_key : null
+  source_code_hash = var.package_type == "Zip" && var.s3_bucket == null && var.jar_path != null ? filebase64sha256(var.jar_path) : null
+
+  # Handler and runtime only for Zip packages
+  handler         = var.package_type == "Zip" ? var.handler : null
+  runtime         = var.package_type == "Zip" ? var.runtime : null
 
   environment {
     variables = var.environment_variables

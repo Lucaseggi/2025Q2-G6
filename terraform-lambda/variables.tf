@@ -31,6 +31,11 @@ variable "embedder_image_uri" {
   type        = string
 }
 
+variable "answer_generator_image_uri" {
+  description = "ECR image URI for answer generator Lambda"
+  type        = string
+}
+
 variable "inserter_image_uri" {
   description = "ECR image URI for inserter Lambda"
   type        = string
@@ -132,9 +137,9 @@ variable "lambda_timeout" {
   default     = 30
 }
 
-# Database and Vector Store Endpoints
-# NOTE: These will be created by infrastructure team, but we provide variables
-# for temporary configuration during development
+# Database Configuration Variables
+variable "postgres_host" {}
+
 variable "postgres_port" {
   description = "PostgreSQL database port"
   type        = string
@@ -157,13 +162,32 @@ variable "postgres_password" {
   description = "PostgreSQL database password"
   type        = string
   sensitive   = true
-  default     = "postgres123"
+}
+
+# Database and Vector Store Endpoints
+variable "vector_store_type" {
+  description = "Type of vector store to use (pinecone or opensearch)"
+  type        = string
+  default     = "pinecone"
+}
+
+variable "pinecone_api_key" {
+  description = "Pinecone API key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "pinecone_index" {
+  description = "Pinecone index name"
+  type        = string
+  default     = "simpla-vectors"
 }
 
 variable "opensearch_host" {
-  description = "OpenSearch host (will be OpenSearch/Milvus endpoint)"
+  description = "OpenSearch host URL"
   type        = string
-  default     = "localhost"  # Placeholder - will fail until real OpenSearch is created
+  default     = ""
 }
 
 variable vpc_cidr {}
@@ -194,4 +218,15 @@ variable "rds_engine_version"{
 variable "rds_instance_class"{
   type=string
   default="db.t3.medium"
+}
+variable "opensearch_port" {
+  description = "OpenSearch port"
+  type        = string
+  default     = "443"
+}
+
+variable "opensearch_index" {
+  description = "OpenSearch index name"
+  type        = string
+  default     = "simpla-vectors"
 }

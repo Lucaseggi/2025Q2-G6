@@ -19,7 +19,12 @@ output "processor_function_name" {
 
 output "embedder_function_name" {
   description = "Name of the embedder Lambda function"
-  value       = aws_lambda_function.embedder.function_name
+  value       = module.embedder_api.lambda_function_name
+}
+
+output "answer_generator_function_name" {
+  description = "Name of the answer generator Lambda function"
+  value       = module.answer_generator_api.lambda_function_name
 }
 
 output "inserter_function_name" {
@@ -44,7 +49,12 @@ output "processor_arn" {
 
 output "embedder_arn" {
   description = "ARN of the embedder Lambda function"
-  value       = aws_lambda_function.embedder.arn
+  value       = module.embedder_api.lambda_function_arn
+}
+
+output "answer_generator_arn" {
+  description = "ARN of the answer generator Lambda function"
+  value       = module.answer_generator_api.lambda_function_arn
 }
 
 output "inserter_arn" {

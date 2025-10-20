@@ -52,6 +52,15 @@ aws lambda invoke \
   response.json
 ```
 
+Monitor queues:
+```bash
+aws logs tail /aws/lambda/simpla-scraper --since 5m --format short --region us-east-1 | tail -30
+aws logs tail /aws/lambda/simpla-purifier --since 5m --format short --region us-east-1 | tail -30
+aws logs tail /aws/lambda/simpla-processor --since 5m --format short --region us-east-1 | tail -30
+aws logs tail /aws/lambda/simpla-embedder --since 5m --format short --region us-east-1 | tail -30
+aws logs tail /aws/lambda/simpla-inserter --since 5m --format short --region us-east-1 | tail -30
+```
+
 ## Configuration
 
 Edit `terraform.tfvars` to customize:

@@ -19,14 +19,12 @@ module "vectorial_guard" {
   timeout          = var.lambda_timeout
 
   environment_variables = {
-    # Vector Store Configuration (temporary - will move to Secrets Manager)
-    VECTOR_STORE_TYPE   = "opensearch"
-    OPENSEARCH_HOST     = var.opensearch_host
-    OPENSEARCH_PORT     = "9200"
-    OPENSEARCH_SCHEME   = "http"
-    OPENSEARCH_INDEX    = "documents"
-    OPENSEARCH_USERNAME = ""
-    OPENSEARCH_PASSWORD = ""
+    VECTOR_STORE_TYPE = var.vector_store_type
+    PINECONE_API_KEY  = var.pinecone_api_key
+    PINECONE_INDEX    = var.pinecone_index
+    OPENSEARCH_HOST   = var.opensearch_host
+    OPENSEARCH_PORT   = var.opensearch_port
+    OPENSEARCH_INDEX  = var.opensearch_index
   }
 }
 
