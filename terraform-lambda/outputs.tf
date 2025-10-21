@@ -1,3 +1,18 @@
+output "master_private_key_pem" {
+  value     = tls_private_key.master_tls_key.private_key_pem
+  sensitive = true
+}
+
+output "vector_db_public_ip" {
+  description = "Vector DB EC2 instance public IP"
+  value       = aws_instance.vector_db.public_ip
+}
+
+output "vector_db_private_ip" {
+  description = "Vector DB EC2 instance private IP"
+  value       = aws_instance.vector_db.private_ip
+}
+
 # ============================================================================
 # Lambda Function Outputs
 # ============================================================================

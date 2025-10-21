@@ -10,6 +10,59 @@ variable "environment" {
   default     = "prod"
 }
 
+variable "vpc_tags" {
+  description = "VPC Tags"
+  type        = map(string)
+  default     = {}
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for the VPC"
+  type        = string
+  default     = "10.1.0.0/16"
+}
+
+variable "public_subnet_1_cidr" {
+  description = "CIDR block for the Public Subnet 1"
+  type        = string
+  default     = "10.1.1.0/24"
+}
+
+variable "public_subnet_2_cidr" {
+  description = "CIDR block for the Public Subnet 2"
+  type        = string
+  default     = "10.1.2.0/24"
+}
+
+variable "private_subnet_1_cidr" {
+  description = "CIDR block for the Private Subnet 1"
+  type        = string
+  default     = "10.1.3.0/24"
+}
+
+variable "private_subnet_2_cidr" {
+  description = "CIDR block for the Private Subnet 2"
+  type        = string
+  default     = "10.1.4.0/24"
+}
+
+variable "private_subnet_3_cidr" {
+  description = "CIDR block for the Private Subnet 3"
+  type        = string
+  default     = "10.1.5.0/24"
+}
+
+variable "private_subnet_4_cidr" {
+  description = "CIDR block for the Private Subnet 4"
+  type        = string
+  default     = "10.1.6.0/24"
+}
+
+variable "api_sg_name" {}
+variable "priv_sg_name" {}
+variable "vdb_sg_name" {}
+variable "vdb_name" {}
+
 # ECR Image URIs
 variable "scraper_image_uri" {
   description = "ECR image URI for scraper Lambda"
@@ -33,6 +86,11 @@ variable "embedder_image_uri" {
 
 variable "answer_generator_image_uri" {
   description = "ECR image URI for answer generator Lambda"
+  type        = string
+}
+
+variable "opensearch_image_uri" {
+  description = "ECR image URI for OpenSearch ECS"
   type        = string
 }
 
@@ -95,7 +153,7 @@ variable "gemini_api_key" {
 variable "opensearch_endpoint" {
   description = "OpenSearch endpoint URL (optional for now)"
   type        = string
-  default     = "http://localhost:9200"  # Placeholder for future use
+  default     = "http://localhost:9200" # Placeholder for future use
 }
 
 variable "storage_client_type" {
@@ -114,7 +172,7 @@ variable "project_name" {
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)
-  default     = {
+  default = {
     Project = "simpla"
   }
 }
@@ -200,4 +258,17 @@ variable "opensearch_index" {
   description = "OpenSearch index name"
   type        = string
   default     = "simpla-vectors"
+}
+
+# OpenSearch ECS Fargate Configuration
+variable "opensearch_cpu" {
+  description = "CPU units for OpenSearch Fargate task (1024 = 1 vCPU)"
+  type        = number
+  default     = 1024
+}
+
+variable "opensearch_memory" {
+  description = "Memory for OpenSearch Fargate task in MB"
+  type        = number
+  default     = 2048 # 2GB RAM
 }

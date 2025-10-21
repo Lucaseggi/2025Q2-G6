@@ -5,27 +5,40 @@
 module "vectorial_guard" {
   source = "./modules/lambda-api"
 
-  project_name     = var.project_name
-  service_name     = "vectorial-guard"
+  project_name = var.project_name
+  service_name = "vectorial-guard"
 
   # Use S3 for deployment
-  s3_bucket        = aws_s3_bucket.lambda_artifacts.id
-  s3_key           = aws_s3_object.vectorial_guard_jar.key
+  s3_bucket = aws_s3_bucket.lambda_artifacts.id
+  s3_key    = aws_s3_object.vectorial_guard_jar.key
 
-  handler          = "com.simpla.vectorial.lambda.StreamLambdaHandler::handleRequest"
-  lambda_role_arn  = data.aws_iam_role.lab_role.arn
-  runtime          = var.lambda_runtime
-  memory_size      = var.lambda_memory_size
-  timeout          = var.lambda_timeout
+  handler         = "com.simpla.vectorial.lambda.StreamLambdaHandler::handleRequest"
+  lambda_role_arn = data.aws_iam_role.lab_role.arn
+  runtime         = var.lambda_runtime
+  memory_size     = var.lambda_memory_size
+  timeout         = var.lambda_timeout
+
+  # VPC configuration to access OpenSearch ECS
+  vpc_subnet_ids         = [aws_subnet.public_1.id]
+  vpc_security_group_ids = [aws_security_group.public_sg.id, aws_security_group.vdb_sg.id]
 
   environment_variables = {
     VECTOR_STORE_TYPE = var.vector_store_type
     PINECONE_API_KEY  = var.pinecone_api_key
     PINECONE_INDEX    = var.pinecone_index
-    OPENSEARCH_HOST   = var.opensearch_host
-    OPENSEARCH_PORT   = var.opensearch_port
-    OPENSEARCH_INDEX  = var.opensearch_index
+
+    # OpenSearch configuration
+    # Lambda will discover the actual IP at runtime using ECS API with cluster/service names
+    OPENSEARCH_HOST         = aws_instance.vector_db.private_ip
+    OPENSEARCH_PORT         = var.opensearch_port
+    OPENSEARCH_INDEX        = var.opensearch_index
   }
+
+  # Depend on OpenSearch resources
+  depends_on = [
+    aws_security_group.private_sg,
+    aws_security_group.vdb_sg,
+  ]
 }
 
 # ============================================

@@ -30,6 +30,15 @@ resource "aws_lambda_function" "this" {
     variables = var.environment_variables
   }
 
+  # VPC configuration (optional)
+  dynamic "vpc_config" {
+    for_each = length(var.vpc_subnet_ids) > 0 ? [1] : []
+    content {
+      subnet_ids         = var.vpc_subnet_ids
+      security_group_ids = var.vpc_security_group_ids
+    }
+  }
+
   lifecycle {
     create_before_destroy = false
   }
