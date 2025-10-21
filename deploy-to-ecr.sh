@@ -81,6 +81,7 @@ declare -A SERVICE_DIRS=(
     ["embedder"]="04-embedder"
     ["inserter"]="05-inserter"
     ["answer-generator"]="answer-generator"
+    ["db-seeder"]="relational-db-seeder"
 )
 
 declare -A SERVICE_REPOS=(
@@ -90,6 +91,7 @@ declare -A SERVICE_REPOS=(
     ["embedder"]="simpla-embedder"
     ["inserter"]="simpla-inserter"
     ["answer-generator"]="simpla-answer-generator"
+    ["db-seeder"]="simpla-relational-db-seeder"
 )
 
 declare -A SERVICE_LAMBDA_NAMES=(
@@ -99,6 +101,7 @@ declare -A SERVICE_LAMBDA_NAMES=(
     ["embedder"]="simpla-embedder"
     ["inserter"]="simpla-inserter"
     ["answer-generator"]="simpla-answer-generator"
+    ["db-seeder"]="relational-db-seeder"
 )
 
 # Parse command line arguments
