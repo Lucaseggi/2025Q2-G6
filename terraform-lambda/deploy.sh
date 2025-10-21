@@ -34,7 +34,7 @@ Usage: ./deploy.sh [OPTIONS]
 Deploy Simpla microservices to AWS Lambda
 
 OPTIONS:
-  -a, --account ACCOUNT_ID   AWS account ID (required)
+  -a, --account ACCOUNT_ID   AWS account ID (auto-detected if not provided)
   -r, --region REGION        AWS region (default: us-east-1)
   -t, --tag TAG             Image tag (default: latest)
   -w, --workspace WORKSPACE  Terraform workspace (default: default)
@@ -45,23 +45,26 @@ OPTIONS:
   -h, --help                Show this help message
 
 EXAMPLES:
-  # Full deployment (Lambda JARs + ECR + Terraform + EC2 setup)
+  # Full deployment (auto-detect account ID)
+  ./deploy.sh
+
+  # Full deployment with explicit account ID
   ./deploy.sh -a 123456789012
 
-  # Deploy to specific workspace (e.g., cloud-ws for account 965505236489)
-  ./deploy.sh -a 965505236489 -w cloud-ws
+  # Deploy to specific workspace (e.g., cloud-ws)
+  ./deploy.sh -w cloud-ws
 
   # Skip Lambda builds (JARs already built)
-  ./deploy.sh -a 123456789012 --skip-lambdas
+  ./deploy.sh --skip-lambdas
 
   # Skip EC2 post-deployment (only infrastructure, no EC2 configuration)
-  ./deploy.sh -a 123456789012 --skip-post-deploy
+  ./deploy.sh --skip-post-deploy
 
   # Only deploy to ECR
-  ./deploy.sh -a 123456789012 --skip-lambdas --skip-terraform --skip-post-deploy
+  ./deploy.sh --skip-lambdas --skip-terraform --skip-post-deploy
 
   # Only run Terraform (assumes JARs and images ready)
-  ./deploy.sh -a 123456789012 --skip-lambdas --skip-ecr --skip-post-deploy
+  ./deploy.sh --skip-lambdas --skip-ecr --skip-post-deploy
 
 PREREQUISITES:
   1. AWS CLI configured
@@ -130,12 +133,21 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate required parameters
+# Auto-detect AWS account ID if not provided
 if [ -z "$AWS_ACCOUNT_ID" ]; then
-    log_error "AWS_ACCOUNT_ID is required"
+    log_info "AWS account ID not provided, auto-detecting..."
+    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+
+    if [ -z "$AWS_ACCOUNT_ID" ]; then
+        log_error "Failed to auto-detect AWS account ID"
+        log_error "Please ensure AWS CLI is configured or provide account ID with -a flag"
+        echo ""
+        print_usage
+        exit 1
+    fi
+
+    log_info "✓ Detected AWS account ID: $AWS_ACCOUNT_ID"
     echo ""
-    print_usage
-    exit 1
 fi
 
 # Header
