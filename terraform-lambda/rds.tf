@@ -2,7 +2,7 @@ module "rds" {
   source  = "terraform-aws-modules/rds/aws"
   version = "~> 6.0" 
 
-  identifier = replace(lower(var.relational_db_name), "_", "-")
+  identifier = var.postgres_db
 
   
   engine            = var.rds_engine
@@ -11,6 +11,7 @@ module "rds" {
   allocated_storage = 50
   
   manage_master_user_password = false
+  db_name  = var.postgres_db
   username = var.postgres_user
   password = var.postgres_password
   port     = var.postgres_port
@@ -21,7 +22,7 @@ module "rds" {
   family               = "postgres16"
   major_engine_version = var.rds_engine_version  
   tags = {
-    Name = var.relational_db_name
+    Name = var.postgres_db
   }
 }
 

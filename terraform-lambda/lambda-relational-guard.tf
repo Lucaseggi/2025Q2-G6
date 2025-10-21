@@ -17,9 +17,10 @@ module "relational_guard" {
   runtime          = var.lambda_runtime
   memory_size      = var.lambda_memory_size
   timeout          = var.lambda_timeout
+  depends_on       = [module.rds]
 
   environment_variables = {
-    POSTGRES_HOST     = var.postgres_host
+    POSTGRES_HOST     = module.rds.db_instance_address
     POSTGRES_PORT     = var.postgres_port
     POSTGRES_DB       = var.postgres_db
     POSTGRES_USER     = var.postgres_user

@@ -146,8 +146,8 @@ resource "aws_security_group" "rdb_sg"{
     vpc_id      = aws_vpc.main.id
     description = "sg for relational database"
     ingress {
-    from_port   = 5432
-    to_port     = 5432
+    from_port   = var.postgres_port
+    to_port     = var.postgres_port
     protocol    = "tcp"
     security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
   }
@@ -159,8 +159,8 @@ resource "aws_security_group" "rdb_sg"{
   }
 
   egress{
-    from_port   = 5432
-    to_port     = 5432
+    from_port   = var.postgres_port
+    to_port     = var.postgres_port
     protocol    = "tcp"
     security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
   }

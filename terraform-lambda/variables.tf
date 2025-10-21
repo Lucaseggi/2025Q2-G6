@@ -40,6 +40,10 @@ variable "inserter_image_uri" {
   description = "ECR image URI for inserter Lambda"
   type        = string
 }
+variable "db_seeder_image_uri" {
+  description = "ECR image URI for relational db seeder Lambda"
+  type        = string
+}
 
 # SQS Queue Names
 variable "purifying_queue_name" {
@@ -138,7 +142,6 @@ variable "lambda_timeout" {
 }
 
 # Database Configuration Variables
-variable "postgres_host" {}
 
 variable "postgres_port" {
   description = "PostgreSQL database port"
@@ -201,10 +204,7 @@ variable api_sg_name {}
 variable priv_sg_name  {}
 variable vdb_sg_name {}
 
-variable "relational_db_name" {
-  type=string
-  default="simpla_rag"
-}
+
 variable "rds_engine"{
   type=string
   default="postgres"
