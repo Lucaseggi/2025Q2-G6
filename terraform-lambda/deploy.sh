@@ -142,38 +142,10 @@ log_step "Step 0.5: Building guard JARs..."
 # Create lambda-artifacts directory if it doesn't exist
 mkdir -p lambda-artifacts
 
-# Build relational guard JAR
-log_info "Building relational-guard JAR..."
-cd ../06-relational-guard
-mvn clean package -f pom-lambda.xml -DskipTests -q
-RELATIONAL_JAR="target/relational-guard-1.0.0.jar"
+# TODO: add skip option
+# ./build-lambdas.bat for Windows
+./build-lambdas.sh
 
-if [ ! -f "$RELATIONAL_JAR" ]; then
-    log_error "Failed to build relational-guard JAR"
-    exit 1
-fi
-
-# Copy relational guard JAR to terraform-lambda
-log_info "Copying relational-guard JAR..."
-cp "$RELATIONAL_JAR" ../terraform-lambda/lambda-artifacts/relational-guard-1.0.0.jar
-
-# Build vectorial guard JAR
-log_info "Building vectorial-guard JAR..."
-cd ../07-vectorial-guard
-mvn clean package -f pom-lambda.xml -DskipTests -q
-VECTORIAL_JAR="target/vectorial-guard-1.0.0.jar"
-
-if [ ! -f "$VECTORIAL_JAR" ]; then
-    log_error "Failed to build vectorial-guard JAR"
-    exit 1
-fi
-
-# Copy vectorial guard JAR to terraform-lambda
-log_info "Copying vectorial-guard JAR..."
-cp "$VECTORIAL_JAR" ../terraform-lambda/lambda-artifacts/vectorial-guard-1.0.0.jar
-
-cd ../terraform-lambda
-log_info "✓ Guard JARs built and copied"
 echo ""
 
 # Step 1: Deploy to ECR

@@ -63,3 +63,17 @@ resource "aws_subnet" "private_4" {
     Name = "private-subnet-4"
   }
 }
+
+resource "aws_db_subnet_group" "rds_subnet_group" {
+  name       = "aurora-private-subnet-group"
+  subnet_ids = [
+    aws_subnet.private_1.id,
+    aws_subnet.private_2.id,
+    aws_subnet.private_3.id,
+    aws_subnet.private_4.id
+  ]
+
+  tags = {
+    Name = "aurora-private-subnet-group"
+  }
+}

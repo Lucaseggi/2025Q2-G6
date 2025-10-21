@@ -61,6 +61,7 @@ variable "private_subnet_4_cidr" {
 variable "api_sg_name" {}
 variable "priv_sg_name" {}
 variable "vdb_sg_name" {}
+
 variable "vdb_name" {}
 
 # ECR Image URIs
@@ -96,6 +97,10 @@ variable "opensearch_image_uri" {
 
 variable "inserter_image_uri" {
   description = "ECR image URI for inserter Lambda"
+  type        = string
+}
+variable "db_seeder_image_uri" {
+  description = "ECR image URI for relational db seeder Lambda"
   type        = string
 }
 
@@ -150,12 +155,6 @@ variable "gemini_api_key" {
   sensitive   = true
 }
 
-variable "opensearch_endpoint" {
-  description = "OpenSearch endpoint URL (optional for now)"
-  type        = string
-  default     = "http://localhost:9200" # Placeholder for future use
-}
-
 variable "storage_client_type" {
   description = "Storage client type for inserter (rest or grpc)"
   type        = string
@@ -196,7 +195,6 @@ variable "lambda_timeout" {
 }
 
 # Database Configuration Variables
-variable "postgres_host" {}
 
 variable "postgres_port" {
   description = "PostgreSQL database port"
@@ -246,6 +244,21 @@ variable "opensearch_host" {
   description = "OpenSearch host URL"
   type        = string
   default     = ""
+}
+
+variable "rds_engine"{
+  type=string
+  default="postgres"
+}
+
+variable "rds_engine_version"{
+  type=string
+  default="16"
+}
+
+variable "rds_instance_class"{
+  type=string
+  default="db.t3.medium"
 }
 
 variable "opensearch_port" {
