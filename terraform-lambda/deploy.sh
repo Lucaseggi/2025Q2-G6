@@ -37,19 +37,27 @@ OPTIONS:
   -a, --account ACCOUNT_ID   AWS account ID (required)
   -r, --region REGION        AWS region (default: us-east-1)
   -t, --tag TAG             Image tag (default: latest)
+  -w, --workspace WORKSPACE  Terraform workspace (default: default)
+  --skip-lambdas            Skip Lambda JAR builds
   --skip-ecr                Skip ECR deployment
   --skip-terraform          Skip Terraform apply
   -h, --help                Show this help message
 
 EXAMPLES:
-  # Full deployment (ECR + Terraform)
+  # Full deployment (Lambda JARs + ECR + Terraform)
   ./deploy.sh -a 123456789012
 
-  # Only deploy to ECR
-  ./deploy.sh -a 123456789012 --skip-terraform
+  # Deploy to specific workspace (e.g., cloud-ws for account 965505236489)
+  ./deploy.sh -a 965505236489 -w cloud-ws
 
-  # Only run Terraform (assumes images already in ECR)
-  ./deploy.sh -a 123456789012 --skip-ecr
+  # Skip Lambda builds (JARs already built)
+  ./deploy.sh -a 123456789012 --skip-lambdas
+
+  # Only deploy to ECR
+  ./deploy.sh -a 123456789012 --skip-lambdas --skip-terraform
+
+  # Only run Terraform (assumes JARs and images ready)
+  ./deploy.sh -a 123456789012 --skip-lambdas --skip-ecr
 
 PREREQUISITES:
   1. AWS CLI configured
@@ -64,6 +72,8 @@ EOF
 # Default values
 AWS_REGION="us-east-1"
 IMAGE_TAG="latest"
+TF_WORKSPACE="default"
+SKIP_LAMBDAS=false
 SKIP_ECR=false
 SKIP_TERRAFORM=false
 AWS_ACCOUNT_ID=""
@@ -82,6 +92,14 @@ while [[ $# -gt 0 ]]; do
         -t|--tag)
             IMAGE_TAG="$2"
             shift 2
+            ;;
+        -w|--workspace)
+            TF_WORKSPACE="$2"
+            shift 2
+            ;;
+        --skip-lambdas)
+            SKIP_LAMBDAS=true
+            shift
             ;;
         --skip-ecr)
             SKIP_ECR=true
@@ -118,6 +136,8 @@ log_info "=========================================="
 log_info "AWS Account:  $AWS_ACCOUNT_ID"
 log_info "AWS Region:   $AWS_REGION"
 log_info "Image Tag:    $IMAGE_TAG"
+log_info "TF Workspace: $TF_WORKSPACE"
+log_info "Skip Lambdas: $SKIP_LAMBDAS"
 log_info "Skip ECR:     $SKIP_ECR"
 log_info "Skip TF:      $SKIP_TERRAFORM"
 log_info "=========================================="
@@ -137,20 +157,41 @@ log_info "✓ terraform.tfvars updated"
 echo ""
 
 # Step 0.5: Build guard JARs
-log_step "Step 0.5: Building guard JARs..."
+if [ "$SKIP_LAMBDAS" = false ]; then
+    log_step "Step 0.5: Building guard JARs..."
 
-# Create lambda-artifacts directory if it doesn't exist
-mkdir -p lambda-artifacts
+    # Create lambda-artifacts directory if it doesn't exist
+    mkdir -p lambda-artifacts
 
-# TODO: add skip option
-# ./build-lambdas.bat for Windows
-./build-lambdas.sh
+    # Detect OS and run appropriate build script
+    # Note: build-lambdas.sh should work on most systems including Git Bash on Windows
+    if [ -f "./build-lambdas.sh" ]; then
+        log_info "Running build-lambdas.sh..."
+        ./build-lambdas.sh
+    elif [ -f "./build-lambdas.bat" ]; then
+        log_info "Running build-lambdas.bat..."
+        cmd //c build-lambdas.bat
+    else
+        log_error "No build script found (build-lambdas.sh or build-lambdas.bat)"
+        exit 1
+    fi
 
-echo ""
+    log_info "✓ Lambda JARs built"
+    echo ""
+else
+    log_step "Step 0.5: Skipping Lambda JAR builds"
+
+    # Verify JARs exist if skipping
+    if [ ! -f "lambda-artifacts/relational-guard-1.0.0.jar" ] || [ ! -f "lambda-artifacts/vectorial-guard-1.0.0.jar" ]; then
+        log_warn "Lambda JARs not found in lambda-artifacts/ directory"
+        log_warn "Terraform deployment may fail if JARs are required"
+    fi
+    echo ""
+fi
 
 # Step 1: Deploy to ECR
 if [ "$SKIP_ECR" = false ]; then
-    log_step "Step 1/3: Deploying Docker images to ECR..."
+    log_step "Step 1/2: Deploying Docker images to ECR..."
 
     if [ ! -f "../deploy-to-ecr.sh" ]; then
         log_error "deploy-to-ecr.sh not found in parent directory"
@@ -164,13 +205,13 @@ if [ "$SKIP_ECR" = false ]; then
     log_info "✓ ECR deployment complete"
     echo ""
 else
-    log_step "Step 1/3: Skipping ECR deployment"
+    log_step "Step 1/2: Skipping ECR deployment"
     echo ""
 fi
 
 # Step 2: Deploy with Terraform
 if [ "$SKIP_TERRAFORM" = false ]; then
-    log_step "Step 2/3: Deploying infrastructure with Terraform..."
+    log_step "Step 2/2: Deploying infrastructure with Terraform..."
 
     # Check if terraform.tfvars has been customized
     if grep -q "YOUR_GEMINI_API_KEY_HERE" terraform.tfvars; then
@@ -184,6 +225,10 @@ if [ "$SKIP_TERRAFORM" = false ]; then
         log_info "Initializing Terraform..."
         terraform init
     fi
+
+    # Select workspace
+    log_info "Selecting Terraform workspace: $TF_WORKSPACE"
+    terraform workspace select "$TF_WORKSPACE" 2>/dev/null || terraform workspace new "$TF_WORKSPACE"
 
     # Plan
     log_info "Creating Terraform plan..."
@@ -199,7 +244,7 @@ if [ "$SKIP_TERRAFORM" = false ]; then
     log_info "✓ Terraform deployment complete"
     echo ""
 else
-    log_step "Step 2/3: Skipping Terraform deployment"
+    log_step "Step 2/2: Skipping Terraform deployment"
     echo ""
 fi
 
