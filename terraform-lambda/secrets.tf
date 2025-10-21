@@ -118,7 +118,7 @@ resource "aws_secretsmanager_secret_version" "services_config" {
   secret_id = aws_secretsmanager_secret.services_config.id
 
   secret_string = jsonencode({
-    opensearch_endpoint          = var.opensearch_endpoint
+    opensearch_endpoint          = "${aws_instance.vector_db.private_ip}:9200"
     inserter_storage_client_type = var.storage_client_type
     # Lambda port placeholders (not used but required by config validation)
     scraper_port   = 8001
