@@ -11,7 +11,7 @@ resource "aws_lambda_function" "db_seeder" {
   vpc_config {
     #TODO cambiar por for each
     subnet_ids         = [aws_subnet.private_1.id, aws_subnet.private_2.id, aws_subnet.private_3.id,aws_subnet.private_4.id]
-    security_group_ids = [aws_security_group.rdb_sg.id]
+    security_group_ids = [aws_security_group.private_sg.id]
   }
 
 

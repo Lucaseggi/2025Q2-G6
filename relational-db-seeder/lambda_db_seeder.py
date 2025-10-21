@@ -7,7 +7,7 @@ def handler(event, context):
     db_pass = os.environ['DB_PASS']
     db_port = os.environ['DB_PORT']
     db_name = os.environ['DB_NAME']
-    sql_file_path = os.path.join(os.path.dirname(__file__), "create_tables.sql")
+    sql_file_path = os.path.join(os.path.dirname(__file__), "01_create_tables.sql")
 
     print(f"Connecting to {db_host}...")
 
