@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Get the script directory and terraform-lambda directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+TF_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+# Change to terraform directory to run terraform commands
+cd "$TF_DIR"
+
 # Path to the Terraform SSH config
 SSH_CONFIG="$HOME/.ssh/terraform_config"
 
 # Backup existing terraform_config if it exists
 if [[ -f "$SSH_CONFIG" ]]; then
     cp "$SSH_CONFIG" "$SSH_CONFIG.bak.$(date +%s)"
+    echo "Backed up existing SSH config"
 fi
 
 # Start with a fresh file

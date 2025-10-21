@@ -41,10 +41,11 @@ OPTIONS:
   --skip-lambdas            Skip Lambda JAR builds
   --skip-ecr                Skip ECR deployment
   --skip-terraform          Skip Terraform apply
+  --skip-post-deploy        Skip post-deployment EC2 setup
   -h, --help                Show this help message
 
 EXAMPLES:
-  # Full deployment (Lambda JARs + ECR + Terraform)
+  # Full deployment (Lambda JARs + ECR + Terraform + EC2 setup)
   ./deploy.sh -a 123456789012
 
   # Deploy to specific workspace (e.g., cloud-ws for account 965505236489)
@@ -53,11 +54,14 @@ EXAMPLES:
   # Skip Lambda builds (JARs already built)
   ./deploy.sh -a 123456789012 --skip-lambdas
 
+  # Skip EC2 post-deployment (only infrastructure, no EC2 configuration)
+  ./deploy.sh -a 123456789012 --skip-post-deploy
+
   # Only deploy to ECR
-  ./deploy.sh -a 123456789012 --skip-lambdas --skip-terraform
+  ./deploy.sh -a 123456789012 --skip-lambdas --skip-terraform --skip-post-deploy
 
   # Only run Terraform (assumes JARs and images ready)
-  ./deploy.sh -a 123456789012 --skip-lambdas --skip-ecr
+  ./deploy.sh -a 123456789012 --skip-lambdas --skip-ecr --skip-post-deploy
 
 PREREQUISITES:
   1. AWS CLI configured
@@ -76,6 +80,7 @@ TF_WORKSPACE="default"
 SKIP_LAMBDAS=false
 SKIP_ECR=false
 SKIP_TERRAFORM=false
+SKIP_POST_DEPLOY=false
 AWS_ACCOUNT_ID=""
 
 # Parse arguments
@@ -109,6 +114,10 @@ while [[ $# -gt 0 ]]; do
             SKIP_TERRAFORM=true
             shift
             ;;
+        --skip-post-deploy)
+            SKIP_POST_DEPLOY=true
+            shift
+            ;;
         -h|--help)
             print_usage
             exit 0
@@ -133,13 +142,14 @@ fi
 log_info "=========================================="
 log_info "Simpla Lambda Deployment"
 log_info "=========================================="
-log_info "AWS Account:  $AWS_ACCOUNT_ID"
-log_info "AWS Region:   $AWS_REGION"
-log_info "Image Tag:    $IMAGE_TAG"
-log_info "TF Workspace: $TF_WORKSPACE"
-log_info "Skip Lambdas: $SKIP_LAMBDAS"
-log_info "Skip ECR:     $SKIP_ECR"
-log_info "Skip TF:      $SKIP_TERRAFORM"
+log_info "AWS Account:    $AWS_ACCOUNT_ID"
+log_info "AWS Region:     $AWS_REGION"
+log_info "Image Tag:      $IMAGE_TAG"
+log_info "TF Workspace:   $TF_WORKSPACE"
+log_info "Skip Lambdas:   $SKIP_LAMBDAS"
+log_info "Skip ECR:       $SKIP_ECR"
+log_info "Skip TF:        $SKIP_TERRAFORM"
+log_info "Skip Post-Deploy: $SKIP_POST_DEPLOY"
 log_info "=========================================="
 echo ""
 
@@ -191,7 +201,7 @@ fi
 
 # Step 1: Deploy to ECR
 if [ "$SKIP_ECR" = false ]; then
-    log_step "Step 1/2: Deploying Docker images to ECR..."
+    log_step "Step 1/3: Deploying Docker images to ECR..."
 
     if [ ! -f "../deploy-to-ecr.sh" ]; then
         log_error "deploy-to-ecr.sh not found in parent directory"
@@ -205,13 +215,13 @@ if [ "$SKIP_ECR" = false ]; then
     log_info "✓ ECR deployment complete"
     echo ""
 else
-    log_step "Step 1/2: Skipping ECR deployment"
+    log_step "Step 1/3: Skipping ECR deployment"
     echo ""
 fi
 
 # Step 2: Deploy with Terraform
 if [ "$SKIP_TERRAFORM" = false ]; then
-    log_step "Step 2/2: Deploying infrastructure with Terraform..."
+    log_step "Step 2/3: Deploying infrastructure with Terraform..."
 
     # Check if terraform.tfvars has been customized
     if grep -q "YOUR_GEMINI_API_KEY_HERE" terraform.tfvars; then
@@ -244,7 +254,30 @@ if [ "$SKIP_TERRAFORM" = false ]; then
     log_info "✓ Terraform deployment complete"
     echo ""
 else
-    log_step "Step 2/2: Skipping Terraform deployment"
+    log_step "Step 2/3: Skipping Terraform deployment"
+    echo ""
+fi
+
+# Step 3: Post-deployment EC2 setup
+if [ "$SKIP_POST_DEPLOY" = false ]; then
+    log_step "Step 3/3: Setting up EC2 instances..."
+
+    # Check if post-terraform-deploy.sh exists
+    if [ ! -f "ec2-scripts/post-terraform-deploy.sh" ]; then
+        log_warn "ec2-scripts/post-terraform-deploy.sh not found, skipping EC2 setup"
+    else
+        # Check if there's a terraform state (i.e., terraform was run)
+        if [ ! -f "terraform.tfstate" ] || [ ! -s "terraform.tfstate" ]; then
+            log_warn "No Terraform state found, skipping EC2 setup"
+        else
+            ./ec2-scripts/post-terraform-deploy.sh
+        fi
+    fi
+
+    log_info "✓ EC2 setup complete"
+    echo ""
+else
+    log_step "Step 3/3: Skipping post-deployment EC2 setup"
     echo ""
 fi
 

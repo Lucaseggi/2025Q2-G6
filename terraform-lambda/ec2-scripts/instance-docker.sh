@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Get the script directory and terraform-lambda directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+TF_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+# Change to terraform directory to run terraform commands
+cd "$TF_DIR"
+
 SSH_CONFIG="$HOME/.ssh/terraform_config"
 
 # Get IPs from terraform outputs
