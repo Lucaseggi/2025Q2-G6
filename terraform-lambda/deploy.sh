@@ -42,6 +42,7 @@ OPTIONS:
   --skip-ecr                Skip ECR deployment
   --skip-terraform          Skip Terraform apply
   --skip-post-deploy        Skip post-deployment EC2 setup
+  --keep-nat-bastion        Keep NAT Gateway and Bastion running (don't disable after deployment)
   -h, --help                Show this help message
 
 EXAMPLES:
@@ -84,6 +85,7 @@ SKIP_JARS=false
 SKIP_ECR=false
 SKIP_TERRAFORM=false
 SKIP_POST_DEPLOY=false
+KEEP_NAT_BASTION=false
 AWS_ACCOUNT_ID=""
 
 # Parse arguments
@@ -119,6 +121,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-post-deploy)
             SKIP_POST_DEPLOY=true
+            shift
+            ;;
+        --keep-nat-bastion)
+            KEEP_NAT_BASTION=true
             shift
             ;;
         -h|--help)
@@ -158,10 +164,11 @@ log_info "AWS Account:    $AWS_ACCOUNT_ID"
 log_info "AWS Region:     $AWS_REGION"
 log_info "Image Tag:      $IMAGE_TAG"
 log_info "TF Workspace:   $TF_WORKSPACE"
-log_info "Skip Jars:      $SKIP_JARS"
-log_info "Skip ECR:       $SKIP_ECR"
-log_info "Skip TF:        $SKIP_TERRAFORM"
+log_info "Skip Jars:       $SKIP_JARS"
+log_info "Skip ECR:        $SKIP_ECR"
+log_info "Skip TF:         $SKIP_TERRAFORM"
 log_info "Skip Post-Deploy: $SKIP_POST_DEPLOY"
+log_info "Keep NAT/Bastion: $KEEP_NAT_BASTION"
 log_info "=========================================="
 echo ""
 
@@ -291,6 +298,25 @@ if [ "$SKIP_POST_DEPLOY" = false ]; then
 else
     log_step "Step 3/3: Skipping post-deployment EC2 setup"
     echo ""
+fi
+
+# Step 4: Disable NAT Gateway and Bastion to save costs
+if [ "$SKIP_TERRAFORM" = false ] && [ "$KEEP_NAT_BASTION" = false ]; then
+    log_step "Step 4: Disabling NAT Gateway and Bastion to save costs..."
+    log_info "This will destroy the NAT Gateway (~$32/month) and Bastion host"
+    log_info "You can re-enable them anytime with: terraform apply -var=\"enable_nat_gateway=true\" -var=\"enable_bastion=true\""
+
+    terraform apply -var="enable_nat_gateway=false" -var="enable_bastion=false" -auto-approve
+
+    log_info "✓ NAT Gateway and Bastion disabled"
+    echo ""
+else
+    if [ "$KEEP_NAT_BASTION" = true ]; then
+        log_step "Step 4: Keeping NAT Gateway and Bastion running (--keep-nat-bastion flag set)"
+        log_warn "Remember: NAT Gateway costs ~$32/month"
+        log_info "To disable later, run: terraform apply -var=\"enable_nat_gateway=false\" -var=\"enable_bastion=false\""
+        echo ""
+    fi
 fi
 
 # Summary

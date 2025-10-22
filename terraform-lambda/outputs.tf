@@ -4,8 +4,8 @@ output "master_private_key_pem" {
 }
 
 output "bastion_public_ip" {
-  description = "Bastion host public IP for SSH access"
-  value       = aws_instance.bastion.public_ip
+  description = "Bastion host public IP for SSH access (null if bastion disabled)"
+  value       = var.enable_bastion ? aws_instance.bastion[0].public_ip : null
 }
 
 output "vector_db_private_ip" {

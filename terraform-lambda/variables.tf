@@ -10,6 +10,18 @@ variable "environment" {
   default     = "prod"
 }
 
+variable "enable_nat_gateway" {
+  description = "Enable NAT Gateway for private subnets. Set to true for initial setup, false after deployment."
+  type        = bool
+  default     = false
+}
+
+variable "enable_bastion" {
+  description = "Enable bastion host for SSH access to private instances. Set to true when needed, false to save costs."
+  type        = bool
+  default     = false
+}
+
 variable "vpc_tags" {
   description = "VPC Tags"
   type        = map(string)

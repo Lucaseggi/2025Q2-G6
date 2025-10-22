@@ -19,7 +19,9 @@ resource "aws_key_pair" "master_key" {
 }
 
 # Bastion Host in public subnet for accessing private resources
+# Conditional creation based on enable_bastion variable
 resource "aws_instance" "bastion" {
+  count                       = var.enable_bastion ? 1 : 0
   ami                         = data.aws_ami.ecs.id
   instance_type               = "t3.micro"
   subnet_id                   = aws_subnet.public_1.id
