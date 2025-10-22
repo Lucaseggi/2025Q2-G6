@@ -26,12 +26,11 @@ resource "aws_lambda_function" "db_seeder" {
   }
   
 }
-resource "null_resource" "invoke_db_seeder" {
+resource "aws_lambda_invocation" "db_seed" {
+  function_name =aws_lambda_function.db_seeder.function_name
+  input      = jsonencode({})
   depends_on = [aws_lambda_function.db_seeder]
-
-  provisioner "local-exec" {
-    command = <<EOT
-aws lambda invoke --function-name db-seeder-lambda --region us-east-1 --payload '{}' /dev/stdout
-EOT
-  }
+}
+output "lambda_output" {
+  value = aws_lambda_invocation.db_seed.result
 }
