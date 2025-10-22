@@ -188,6 +188,13 @@ if [ ! -f "terraform.tfvars" ]; then
     exit 1
 fi
 
+# Make all shell scripts executable
+log_info "Setting execute permissions on shell scripts..."
+find . -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+find .. -maxdepth 1 -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+log_info "✓ Execute permissions set"
+echo ""
+
 # Step 0: Update terraform.tfvars with correct account ID
 log_step "Step 0: Updating terraform.tfvars with account ID..."
 sed -i "s/[0-9]\{12\}\.dkr\.ecr\.${AWS_REGION}\.amazonaws\.com/${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/g" terraform.tfvars
@@ -299,7 +306,16 @@ if [ "$SKIP_POST_DEPLOY" = false ]; then
         if [ ! -f "terraform.tfstate" ] || [ ! -s "terraform.tfstate" ]; then
             log_warn "No Terraform state found, skipping EC2 setup"
         else
-            ./ec2-scripts/post-terraform-deploy.sh
+            # Try without sudo first (most systems don't need it for ~/.ssh operations)
+            # If it fails, user can run with sudo manually
+            log_info "Running post-deployment setup (writing SSH keys to ~/.ssh)..."
+            if ./ec2-scripts/post-terraform-deploy.sh 2>/dev/null; then
+                log_info "✓ Post-deployment setup completed"
+            else
+                log_warn "Post-deployment setup failed without sudo"
+                log_info "Attempting with sudo (may require password)..."
+                sudo ./ec2-scripts/post-terraform-deploy.sh
+            fi
         fi
     fi
 
@@ -323,6 +339,7 @@ if [ "$SKIP_FRONTEND" = false ]; then
             log_warn "No Terraform state found, skipping frontend deployment"
         else
             cd ..
+            pwd
             ./deploy-frontend.sh
             cd terraform-lambda
         fi

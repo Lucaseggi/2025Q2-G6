@@ -23,6 +23,7 @@ module "answer_generator_api" {
     VECTORIAL_API_HOST   = module.vectorial_guard.api_endpoint
     RELATIONAL_API_HOST  = module.relational_guard.api_endpoint
     DEFAULT_SEARCH_LIMIT = "5"
+    SECRETS_MANAGER_ENDPOINT = ""
   }
 
   # Depends on secrets being created and guard services

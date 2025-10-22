@@ -96,5 +96,7 @@ utils/rebuilder/norms_dump
 
 DEPLOYMENT_GUIDE.md
 
+terraform-lambda/tfplan
+
 dev.env
 *.jar

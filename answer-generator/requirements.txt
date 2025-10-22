@@ -9,5 +9,12 @@ pydantic-settings==2.1.0
 # HTTP client
 requests==2.31.0
 
+# LLM and AI
+google-generativeai==0.8.3
+tenacity==9.0.0
+
+# AWS SDK
+boto3==1.34.0
+
 # Utilities
 python-dotenv==1.0.0

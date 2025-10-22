@@ -7,16 +7,34 @@ from typing import Dict, Any, List, Optional
 from src.clients.embedding import get_embedding
 from src.clients.vectorial import search_vectors
 from src.clients.relational import fetch_batch_entities
+from src.services.llm_service import LLMAnswerService
 
 logger = logging.getLogger(__name__)
 
 
 class RAGService:
-    """Service for orchestrating RAG pipeline: embed -> search -> fetch context"""
+    """Service for orchestrating RAG pipeline: embed -> search -> fetch context -> generate answer"""
 
-    def __init__(self):
-        """Initialize RAG service"""
-        pass
+    def __init__(self, gemini_api_key: Optional[str] = None, gemini_model: str = "gemini-2.0-flash-lite"):
+        """
+        Initialize RAG service.
+
+        Args:
+            gemini_api_key: Gemini API key for LLM answer generation
+            gemini_model: Gemini model name to use
+        """
+        self.llm_service = None
+        if gemini_api_key:
+            try:
+                self.llm_service = LLMAnswerService(
+                    api_key=gemini_api_key,
+                    model_name=gemini_model
+                )
+                logger.info("LLM service initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize LLM service: {e}. Will return context without answer.")
+        else:
+            logger.warning("No Gemini API key provided. LLM answer generation will be disabled.")
 
     def get_context_for_question(
         self,
@@ -36,6 +54,7 @@ class RAGService:
             Dict with:
                 - success (bool): Whether the operation succeeded
                 - context (dict): Contains normas_data and norma_ids
+                - answer (str): Generated answer from LLM (empty if LLM unavailable)
                 - message (str): Status message
         """
         try:
@@ -49,6 +68,7 @@ class RAGService:
                 return {
                     "success": False,
                     "context": {"normas_data": [], "norma_ids": []},
+                    "answer": "",
                     "message": error_msg
                 }
 
@@ -69,6 +89,7 @@ class RAGService:
                 return {
                     "success": False,
                     "context": {"normas_data": [], "norma_ids": []},
+                    "answer": "",
                     "message": error_msg
                 }
 
@@ -79,6 +100,7 @@ class RAGService:
                 return {
                     "success": True,
                     "context": {"normas_data": [], "norma_ids": []},
+                    "answer": "",
                     "message": "No similar documents found"
                 }
 
@@ -108,12 +130,34 @@ class RAGService:
                 logger.error(f"Failed to parse normas_json: {e}")
                 normas_data = []
 
+            # Step 6: Generate answer using LLM
+            answer = ""
+            if self.llm_service and normas_data:
+                logger.info("Generating answer using LLM")
+                try:
+                    llm_result = self.llm_service.generate_answer(
+                        question=question,
+                        context_data=normas_data
+                    )
+                    if llm_result["success"]:
+                        answer = llm_result["answer"]
+                        logger.info(f"Successfully generated answer with {llm_result.get('tokens_used', 0)} tokens")
+                    else:
+                        logger.warning(f"LLM failed to generate answer: {llm_result.get('error')}")
+                except Exception as e:
+                    logger.error(f"Error calling LLM service: {e}")
+            elif not self.llm_service:
+                logger.info("LLM service not available, skipping answer generation")
+            elif not normas_data:
+                logger.info("No context data available, skipping answer generation")
+
             return {
                 "success": True,
                 "context": {
                     "normas_data": normas_data,
                     "norma_ids": norma_ids
                 },
+                "answer": answer,
                 "message": f"Successfully retrieved context with {len(normas_data)} normas"
             }
 

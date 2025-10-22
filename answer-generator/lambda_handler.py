@@ -11,6 +11,10 @@ import sys
 from datetime import datetime
 from typing import Dict, Any
 
+# Add shared modules to path
+sys.path.append('/var/task/shared')
+sys.path.append(os.path.join(os.path.dirname(__file__), 'shared'))
+
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -136,6 +140,7 @@ def handle_question(event: Dict[str, Any]) -> Dict[str, Any]:
                 'success': True,
                 'question': question,
                 'context': result['context'],
+                'answer': result.get('answer', ''),
                 'message': result['message'],
                 'timestamp': datetime.now().isoformat()
             })

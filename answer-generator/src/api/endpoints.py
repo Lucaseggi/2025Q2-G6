@@ -63,6 +63,7 @@ async def answer_question(
             success=True,
             question=request.question,
             context=result["context"],
+            answer=result.get("answer", ""),
             message=result["message"],
             timestamp=datetime.now()
         )

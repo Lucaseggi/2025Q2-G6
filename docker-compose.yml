@@ -285,7 +285,13 @@ services:
       - VECTORIAL_API_HOST=http://vectorial-guard:8080
       - RELATIONAL_API_HOST=http://relational-guard:8090
       - DEFAULT_SEARCH_LIMIT=5
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - SECRETS_MANAGER_ENDPOINT=http://localstack:4566
     depends_on:
+      localstack:
+        condition: service_healthy
       embedder-api:
         condition: service_started
       relational-guard:

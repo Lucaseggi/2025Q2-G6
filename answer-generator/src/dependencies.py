@@ -12,7 +12,11 @@ def get_rag_service() -> RAGService:
     """Get or create RAG service instance"""
     global _rag_service
     if _rag_service is None:
-        _rag_service = RAGService()
+        settings = get_settings()
+        _rag_service = RAGService(
+            gemini_api_key=settings.gemini_api_key,
+            gemini_model=settings.gemini_model
+        )
     return _rag_service
 
 

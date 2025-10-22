@@ -1,5 +1,0 @@
-{
-  "httpMethod": "POST",
-  "path": "/embed",
-  "body": "{\"text\": \"This is a test document about Argentine legal norms and regulations.\"}"
-}
