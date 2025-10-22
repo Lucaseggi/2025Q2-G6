@@ -45,6 +45,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "scraper_storage" {
     id     = "expire-old-scrapes"
     status = "Enabled"
 
+    filter {}
+
     expiration {
       days = 90  # Keep scraped data for 90 days
     }
@@ -95,6 +97,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "purifier_storage" {
     id     = "expire-old-purified"
     status = "Enabled"
 
+    filter {}
+
     expiration {
       days = 90
     }
@@ -144,6 +148,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "processor_storage" {
   rule {
     id     = "expire-old-processed"
     status = "Enabled"
+
+    filter {}
 
     expiration {
       days = 90

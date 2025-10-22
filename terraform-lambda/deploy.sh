@@ -38,7 +38,7 @@ OPTIONS:
   -r, --region REGION        AWS region (default: us-east-1)
   -t, --tag TAG             Image tag (default: latest)
   -w, --workspace WORKSPACE  Terraform workspace (default: default)
-  --skip-lambdas            Skip Lambda JAR builds
+  --skip-jar                Skip Lambda JAR builds
   --skip-ecr                Skip ECR deployment
   --skip-terraform          Skip Terraform apply
   --skip-post-deploy        Skip post-deployment EC2 setup
@@ -55,16 +55,16 @@ EXAMPLES:
   ./deploy.sh -w cloud-ws
 
   # Skip Lambda builds (JARs already built)
-  ./deploy.sh --skip-lambdas
+  ./deploy.sh --skip-jar
 
   # Skip EC2 post-deployment (only infrastructure, no EC2 configuration)
   ./deploy.sh --skip-post-deploy
 
   # Only deploy to ECR
-  ./deploy.sh --skip-lambdas --skip-terraform --skip-post-deploy
+  ./deploy.sh --skip-jar --skip-terraform --skip-post-deploy
 
   # Only run Terraform (assumes JARs and images ready)
-  ./deploy.sh --skip-lambdas --skip-ecr --skip-post-deploy
+  ./deploy.sh --skip-jar --skip-ecr --skip-post-deploy
 
 PREREQUISITES:
   1. AWS CLI configured
@@ -80,7 +80,7 @@ EOF
 AWS_REGION="us-east-1"
 IMAGE_TAG="latest"
 TF_WORKSPACE="default"
-SKIP_LAMBDAS=false
+SKIP_JARS=false
 SKIP_ECR=false
 SKIP_TERRAFORM=false
 SKIP_POST_DEPLOY=false
@@ -105,8 +105,8 @@ while [[ $# -gt 0 ]]; do
             TF_WORKSPACE="$2"
             shift 2
             ;;
-        --skip-lambdas)
-            SKIP_LAMBDAS=true
+        --skip-jar)
+            SKIP_JARS=true
             shift
             ;;
         --skip-ecr)
@@ -158,7 +158,7 @@ log_info "AWS Account:    $AWS_ACCOUNT_ID"
 log_info "AWS Region:     $AWS_REGION"
 log_info "Image Tag:      $IMAGE_TAG"
 log_info "TF Workspace:   $TF_WORKSPACE"
-log_info "Skip Lambdas:   $SKIP_LAMBDAS"
+log_info "Skip Jars:      $SKIP_JARS"
 log_info "Skip ECR:       $SKIP_ECR"
 log_info "Skip TF:        $SKIP_TERRAFORM"
 log_info "Skip Post-Deploy: $SKIP_POST_DEPLOY"
@@ -179,7 +179,7 @@ log_info "✓ terraform.tfvars updated"
 echo ""
 
 # Step 0.5: Build guard JARs
-if [ "$SKIP_LAMBDAS" = false ]; then
+if [ "$SKIP_JARS" = false ]; then
     log_step "Step 0.5: Building guard JARs..."
 
     # Create lambda-artifacts directory if it doesn't exist

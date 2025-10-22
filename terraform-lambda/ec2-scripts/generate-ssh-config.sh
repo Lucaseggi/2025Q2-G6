@@ -21,7 +21,7 @@ fi
 echo "" > "$SSH_CONFIG"
 
 # Terraform outputs
-BASTION_IP=$(terraform output -raw vector_db_public_ip)
+BASTION_IP=$(terraform output -raw bastion_public_ip)
 BASTION_USER="ec2-user"
 BASTION_KEY="~/.ssh/master-key.pem"
 

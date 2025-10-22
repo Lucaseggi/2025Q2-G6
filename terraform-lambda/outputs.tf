@@ -3,14 +3,19 @@ output "master_private_key_pem" {
   sensitive = true
 }
 
-output "vector_db_public_ip" {
-  description = "Vector DB EC2 instance public IP"
-  value       = aws_instance.vector_db.public_ip
+output "bastion_public_ip" {
+  description = "Bastion host public IP for SSH access"
+  value       = aws_instance.bastion.public_ip
 }
 
 output "vector_db_private_ip" {
-  description = "Vector DB EC2 instance private IP"
+  description = "Vector DB EC2 instance private IP (accessible via bastion)"
   value       = aws_instance.vector_db.private_ip
+}
+
+output "opensearch_image_uri" {
+  description = "ECR URI for OpenSearch container image"
+  value       = var.opensearch_image_uri
 }
 
 # ============================================================================

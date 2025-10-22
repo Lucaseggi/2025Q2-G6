@@ -1,3 +1,30 @@
+# Bastion Security Group - Only SSH access
+resource "aws_security_group" "bastion_sg" {
+  name        = "bastion-sg"
+  description = "Security group for bastion host - SSH access only"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "SSH from anywhere"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "All outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "bastion-sg"
+  }
+}
+
 resource "aws_security_group" "public_sg" {
   name        = var.api_sg_name
   description = "Allow SSH and HTTP"
@@ -62,11 +89,11 @@ resource "aws_security_group" "private_sg" {
   }
 
   ingress {
-    description     = "Allow SSH from public SG (optional, e.g., for bastion)"
+    description     = "Allow SSH from bastion host"
     from_port       = 22
     to_port         = 22
     protocol        = "tcp"
-    security_groups = [aws_security_group.public_sg.id]
+    security_groups = [aws_security_group.bastion_sg.id, aws_security_group.public_sg.id]
   }
 
   ingress {
@@ -101,22 +128,35 @@ resource "aws_security_group" "private_sg" {
 
 resource "aws_security_group" "vdb_sg" {
   name        = var.vdb_sg_name
-  description = "Private instances SG"
+  description = "Vector DB security group - OpenSearch access"
   vpc_id      = aws_vpc.main.id
 
-
   ingress {
-    description     = "OpenSearch"
+    description     = "OpenSearch from Lambda functions"
     from_port       = 9200
     to_port         = 9200
     protocol        = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    # self            = true
-    # security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
+    security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
+  }
+
+  ingress {
+    description = "OpenSearch from VPC"
+    from_port   = 9200
+    to_port     = 9200
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  ingress {
+    description = "OpenSearch management port from VPC"
+    from_port   = 9600
+    to_port     = 9600
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   egress {
-    description = "All outbound"
+    description = "All outbound traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -128,26 +168,28 @@ resource "aws_security_group" "vdb_sg" {
   }
 }
 
-resource "aws_security_group" "rdb_sg"{
-    vpc_id      = aws_vpc.main.id
-    description = "sg for relational database"
-    ingress {
-    from_port   = var.postgres_port
-    to_port     = var.postgres_port
-    protocol    = "tcp"
+resource "aws_security_group" "rdb_sg" {
+  vpc_id      = aws_vpc.main.id
+  description = "sg for relational database"
+
+  ingress {
+    from_port       = var.postgres_port
+    to_port         = var.postgres_port
+    protocol        = "tcp"
     security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
   }
-    ingress {
-    from_port   = -1
-    to_port     = -1
-    protocol    = "icmp"
+  
+  ingress {
+    from_port       = -1
+    to_port         = -1
+    protocol        = "icmp"
     security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
   }
 
-  egress{
-    from_port   = var.postgres_port
-    to_port     = var.postgres_port
-    protocol    = "tcp"
+  egress {
+    from_port       = var.postgres_port
+    to_port         = var.postgres_port
+    protocol        = "tcp"
     security_groups = [aws_security_group.public_sg.id, aws_security_group.private_sg.id]
   }
 }

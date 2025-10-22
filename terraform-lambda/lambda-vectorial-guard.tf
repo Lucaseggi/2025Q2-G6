@@ -19,7 +19,7 @@ module "vectorial_guard" {
   timeout         = var.lambda_timeout
 
   # VPC configuration to access OpenSearch ECS
-  vpc_subnet_ids         = [aws_subnet.public_1.id]
+  vpc_subnet_ids         = [aws_subnet.private_1.id]
   vpc_security_group_ids = [aws_security_group.public_sg.id, aws_security_group.vdb_sg.id]
 
   environment_variables = {
