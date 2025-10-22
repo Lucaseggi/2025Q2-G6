@@ -25,7 +25,7 @@ resource "aws_instance" "bastion" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = "t3.micro"
   subnet_id                   = aws_subnet.public_1.id
-  vpc_security_group_ids      = [aws_security_group.bastion_sg.id]
+  vpc_security_group_ids      = [aws_security_group.api_sg.id, aws_security_group.vdb_sg.id]
   associate_public_ip_address = true
   key_name                    = aws_key_pair.master_key.key_name
 
@@ -39,7 +39,7 @@ resource "aws_instance" "vector_db" {
   ami                         = data.aws_ami.ecs.id
   instance_type               = "m7i-flex.large"
   subnet_id                   = aws_subnet.private_1.id
-  vpc_security_group_ids      = [aws_security_group.vdb_sg.id, aws_security_group.private_sg.id]
+  vpc_security_group_ids      = [aws_security_group.vdb_sg.id]
   associate_public_ip_address = false
   key_name                    = aws_key_pair.master_key.key_name
 

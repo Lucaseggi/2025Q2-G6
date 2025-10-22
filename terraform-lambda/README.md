@@ -1,9 +1,13 @@
-# Simpla Lambda Deployment
+# Simpla Terraform Deployment
+
+*ACLARACIONES CLOUD!!!*
+- Agregar el `terraform.tfvars` que incluímos en la entrega.
+- Una vez terminado el `terraform apply`, se hace una conexión por ssh a una instancia, tienen que escribir `yes` en la terminal. Si se fueron a cargar agua al mate, `./deploy.sh --skip-jar --skip-ecr --skip-terraform` corre este último paso.
 
 ## Quick Start
 
 ```bash
-./deploy.sh -a <AWS_ACCOUNT_ID>
+./deploy.sh
 ```
 
 This single command will:
@@ -11,25 +15,30 @@ This single command will:
 2. Build guard JARs (relational-guard, vectorial-guard)
 3. Deploy all Docker images to ECR (scraper, purifier, processor, embedder, inserter)
 4. Apply Terraform to create all AWS infrastructure
+5. Instance Opensearch in the Vectorial DB
+6. Remove deploy components (Bastion, NAT Gateway)
 
 ## Prerequisites
 
 - AWS CLI configured with credentials
 - Docker installed and running
 - Terraform installed
-- Maven installed (for guard JARs)
 
 ## What Gets Deployed
 
-- **Lambdas**: scraper, purifier, processor, embedder, inserter, relational-guard, vectorial-guard
+- **Lambdas**: scraper, purifier, processor, embedder, inserter, relational-guard, vectorial-guard, answer-generator
 - **SQS Queues**: purifying, processing, embedding, inserting (with DLQs)
 - **S3 Buckets**: scraper-storage, purifier-storage, processor-storage, lambda-artifacts
-- **API Gateway**: REST endpoints for both guards
+- **API Gateway**: REST endpoints for both guards, embedder and answer generator
 - **Secrets Manager**: Guard API URLs, queue names, S3 buckets, Gemini API key
 
 ## Testing
+Execute the following command to upload 5 norms to DBs (takes 1 min aprox).
+```bash
+./invoke-scraper-batch.sh
+```
 
-Create a test payload file:
+Alternatively, create a test payload file:
 ```bash
 cat > /tmp/test-scrape.json << 'EOF'
 {
@@ -71,9 +80,7 @@ Edit `terraform.tfvars` to customize:
 
 ## Important Notes
 
-- Guards will fail until RDS (PostgreSQL) and OpenSearch are deployed by your team
-- The inserter will successfully connect to guards but they will return errors due to missing databases
-- This is expected behavior - guards are deployed and reachable via REST APIs
+- Vectorial Guard will fail while Opensearch is being instantiated, keep in mind it is used for the insertion
 - All infrastructure is deployed to us-east-1 by default
 
 ## Cleanup

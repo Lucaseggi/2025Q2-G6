@@ -20,7 +20,7 @@ module "relational_guard" {
   depends_on       = [module.rds]
 
   vpc_subnet_ids   = [aws_subnet.private_1.id]
-  vpc_security_group_ids =[aws_security_group.private_sg.id, aws_security_group.rdb_sg.id]
+  vpc_security_group_ids =[aws_security_group.rdb_sg.id]
 
   environment_variables = {
     POSTGRES_HOST     = module.rds.db_instance_address

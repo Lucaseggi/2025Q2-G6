@@ -138,10 +138,12 @@ echo ""
 # Step 2: Empty S3 buckets (including all versions)
 log_step "Step 2/4: Emptying S3 buckets..."
 
-# Get bucket names from terraform.tfvars
-SCRAPER_BUCKET=$(grep scraper_bucket_name terraform.tfvars | cut -d'"' -f2)
-PURIFIER_BUCKET=$(grep purifier_bucket_name terraform.tfvars | cut -d'"' -f2)
-PROCESSOR_BUCKET=$(grep processor_bucket_name terraform.tfvars | cut -d'"' -f2)
+# Get actual bucket names from Terraform outputs (includes random suffix)
+log_info "Retrieving bucket names from Terraform state..."
+SCRAPER_BUCKET=$(terraform output -raw scraper_bucket_name 2>/dev/null || echo "")
+PURIFIER_BUCKET=$(terraform output -raw purifier_bucket_name 2>/dev/null || echo "")
+PROCESSOR_BUCKET=$(terraform output -raw processor_bucket_name 2>/dev/null || echo "")
+LAMBDA_ARTIFACTS_BUCKET=$(terraform output -raw lambda_artifacts_bucket 2>/dev/null || echo "")
 
 empty_bucket() {
     local BUCKET=$1
@@ -200,7 +202,7 @@ empty_bucket() {
     log_info "  ✓ Bucket $BUCKET emptied"
 }
 
-for BUCKET in "$SCRAPER_BUCKET" "$PURIFIER_BUCKET" "$PROCESSOR_BUCKET"; do
+for BUCKET in "$SCRAPER_BUCKET" "$PURIFIER_BUCKET" "$PROCESSOR_BUCKET" "$LAMBDA_ARTIFACTS_BUCKET"; do
     empty_bucket "$BUCKET"
 done
 

@@ -44,11 +44,12 @@ fi
 # 1. Save the private key from Terraform output into ~/.ssh
 log_info "Step 1/4: Writing private key to ~/.ssh/master-key.pem..."
 
-# Create .ssh directory if it doesn't exist
+# Create .ssh directory if it doesn't exist and set proper permissions
 mkdir -p ~/.ssh
+chmod 700 ~/.ssh
 
 terraform output -raw master_private_key_pem > ~/.ssh/master-key.pem
-chmod 400 ~/.ssh/master-key.pem
+chmod 700 ~/.ssh/master-key.pem
 
 log_info "✓ Private key saved"
 echo ""

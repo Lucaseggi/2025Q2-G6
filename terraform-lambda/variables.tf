@@ -40,12 +40,6 @@ variable "public_subnet_1_cidr" {
   default     = "10.1.1.0/24"
 }
 
-variable "public_subnet_2_cidr" {
-  description = "CIDR block for the Public Subnet 2"
-  type        = string
-  default     = "10.1.2.0/24"
-}
-
 variable "private_subnet_1_cidr" {
   description = "CIDR block for the Private Subnet 1"
   type        = string
@@ -58,21 +52,10 @@ variable "private_subnet_2_cidr" {
   default     = "10.1.4.0/24"
 }
 
-variable "private_subnet_3_cidr" {
-  description = "CIDR block for the Private Subnet 3"
-  type        = string
-  default     = "10.1.5.0/24"
-}
-
-variable "private_subnet_4_cidr" {
-  description = "CIDR block for the Private Subnet 4"
-  type        = string
-  default     = "10.1.6.0/24"
-}
 
 variable "api_sg_name" {}
-variable "priv_sg_name" {}
 variable "vdb_sg_name" {}
+variable "rdb_sg_name" {}
 
 variable "vdb_name" {}
 

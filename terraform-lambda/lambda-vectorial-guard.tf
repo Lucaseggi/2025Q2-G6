@@ -20,7 +20,7 @@ module "vectorial_guard" {
 
   # VPC configuration to access OpenSearch ECS
   vpc_subnet_ids         = [aws_subnet.private_1.id]
-  vpc_security_group_ids = [aws_security_group.public_sg.id, aws_security_group.vdb_sg.id]
+  vpc_security_group_ids = [aws_security_group.vdb_sg.id]
 
   environment_variables = {
     VECTOR_STORE_TYPE = var.vector_store_type
@@ -36,7 +36,6 @@ module "vectorial_guard" {
 
   # Depend on OpenSearch resources
   depends_on = [
-    aws_security_group.private_sg,
     aws_security_group.vdb_sg,
   ]
 }
