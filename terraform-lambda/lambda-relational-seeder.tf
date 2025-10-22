@@ -5,7 +5,6 @@ resource "aws_lambda_function" "db_seeder" {
   package_type     = "Image"
   image_uri        = var.db_seeder_image_uri
   role             = data.aws_iam_role.lab_role.arn
-  runtime          = "python3.11"
   timeout          = 120
 
   vpc_config {
