@@ -43,6 +43,7 @@ OPTIONS:
   --skip-terraform          Skip Terraform apply
   --skip-post-deploy        Skip post-deployment EC2 setup
   --keep-nat-bastion        Keep NAT Gateway and Bastion running (don't disable after deployment)
+  --skip-frontend           Skip frontend deployment to S3
   -h, --help                Show this help message
 
 EXAMPLES:
@@ -60,6 +61,9 @@ EXAMPLES:
 
   # Skip EC2 post-deployment (only infrastructure, no EC2 configuration)
   ./deploy.sh --skip-post-deploy
+
+  # Skip frontend deployment
+  ./deploy.sh -a 123456789012 --skip-frontend
 
   # Only deploy to ECR
   ./deploy.sh --skip-jar --skip-terraform --skip-post-deploy
@@ -85,6 +89,7 @@ SKIP_JARS=false
 SKIP_ECR=false
 SKIP_TERRAFORM=false
 SKIP_POST_DEPLOY=false
+SKIP_FRONTEND=false
 KEEP_NAT_BASTION=false
 AWS_ACCOUNT_ID=""
 
@@ -127,6 +132,10 @@ while [[ $# -gt 0 ]]; do
             KEEP_NAT_BASTION=true
             shift
             ;;
+        --skip-frontend)
+            SKIP_FRONTEND=true
+            shift
+            ;;
         -h|--help)
             print_usage
             exit 0
@@ -164,11 +173,12 @@ log_info "AWS Account:    $AWS_ACCOUNT_ID"
 log_info "AWS Region:     $AWS_REGION"
 log_info "Image Tag:      $IMAGE_TAG"
 log_info "TF Workspace:   $TF_WORKSPACE"
-log_info "Skip Jars:       $SKIP_JARS"
-log_info "Skip ECR:        $SKIP_ECR"
-log_info "Skip TF:         $SKIP_TERRAFORM"
+log_info "Skip Jars:         $SKIP_JARS"
+log_info "Skip ECR:          $SKIP_ECR"
+log_info "Skip TF:           $SKIP_TERRAFORM"
 log_info "Skip Post-Deploy: $SKIP_POST_DEPLOY"
 log_info "Keep NAT/Bastion: $KEEP_NAT_BASTION"
+log_info "Skip Frontend:    $SKIP_FRONTEND"
 log_info "=========================================="
 echo ""
 
@@ -279,7 +289,7 @@ fi
 
 # Step 3: Post-deployment EC2 setup
 if [ "$SKIP_POST_DEPLOY" = false ]; then
-    log_step "Step 3/3: Setting up EC2 instances..."
+    log_step "Step 3/4: Setting up EC2 instances..."
 
     # Check if post-terraform-deploy.sh exists
     if [ ! -f "ec2-scripts/post-terraform-deploy.sh" ]; then
@@ -296,7 +306,32 @@ if [ "$SKIP_POST_DEPLOY" = false ]; then
     log_info "✓ EC2 setup complete"
     echo ""
 else
-    log_step "Step 3/3: Skipping post-deployment EC2 setup"
+    log_step "Step 3/4: Skipping post-deployment EC2 setup"
+    echo ""
+fi
+
+# Step 4: Deploy frontend to S3
+if [ "$SKIP_FRONTEND" = false ]; then
+    log_step "Step 4/4: Deploying frontend to S3..."
+
+    # Check if deploy-frontend.sh exists
+    if [ ! -f "../deploy-frontend.sh" ]; then
+        log_warn "deploy-frontend.sh not found in parent directory, skipping frontend deployment"
+    else
+        # Check if there's a terraform state (i.e., terraform was run)
+        if [ ! -f "terraform.tfstate" ] || [ ! -s "terraform.tfstate" ]; then
+            log_warn "No Terraform state found, skipping frontend deployment"
+        else
+            cd ..
+            ./deploy-frontend.sh
+            cd terraform-lambda
+        fi
+    fi
+
+    log_info "✓ Frontend deployment complete"
+    echo ""
+else
+    log_step "Step 4/4: Skipping frontend deployment"
     echo ""
 fi
 
@@ -331,13 +366,21 @@ if [ "$SKIP_TERRAFORM" = false ]; then
 
     log_info ""
     log_info "Next Steps:"
-    log_info "1. Test Lambda functions:"
+    log_info "1. Access frontend:"
+    if [ "$SKIP_FRONTEND" = false ]; then
+        FRONTEND_URL=$(terraform output -raw frontend_website_url 2>/dev/null)
+        if [ ! -z "$FRONTEND_URL" ] && [ "$FRONTEND_URL" != "null" ]; then
+            log_info "   $FRONTEND_URL"
+        fi
+    fi
+    log_info ""
+    log_info "2. Test Lambda functions:"
     log_info "   aws lambda invoke --function-name simpla-scraper response.json"
     log_info ""
-    log_info "2. Monitor CloudWatch Logs:"
+    log_info "3. Monitor CloudWatch Logs:"
     log_info "   aws logs tail /aws/lambda/simpla-processor --follow"
     log_info ""
-    log_info "3. Check SQS queues:"
+    log_info "4. Check SQS queues:"
     log_info "   aws sqs list-queues --region $AWS_REGION"
     log_info ""
 fi

@@ -95,12 +95,55 @@ resource "aws_api_gateway_integration" "proxy_root" {
   uri                     = aws_lambda_function.this.invoke_arn
 }
 
+# ============================================
+# CORS Support - OPTIONS method for proxy path
+# ============================================
+
+resource "aws_api_gateway_method" "options_proxy" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.proxy.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_proxy" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.proxy.id
+  http_method = aws_api_gateway_method.options_proxy.http_method
+  type        = "AWS_PROXY"
+  integration_http_method = "POST"
+  uri         = aws_lambda_function.this.invoke_arn
+}
+
+# OPTIONS method for root path
+resource "aws_api_gateway_method" "options_root" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_rest_api.this.root_resource_id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_root" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_rest_api.this.root_resource_id
+  http_method = aws_api_gateway_method.options_root.http_method
+  type        = "AWS_PROXY"
+  integration_http_method = "POST"
+  uri         = aws_lambda_function.this.invoke_arn
+}
+
+# ============================================
+# Deployment
+# ============================================
+
 resource "aws_api_gateway_deployment" "this" {
   rest_api_id = aws_api_gateway_rest_api.this.id
 
   depends_on = [
     aws_api_gateway_integration.proxy,
-    aws_api_gateway_integration.proxy_root
+    aws_api_gateway_integration.proxy_root,
+    aws_api_gateway_integration.options_proxy,
+    aws_api_gateway_integration.options_root
   ]
 }
 

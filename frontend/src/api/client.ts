@@ -64,7 +64,7 @@ export class ApiClient {
 
   async askQuestion(request: ApiQuestionRequest): Promise<ApiQuestionResponse> {
     try {
-      const response = await this.fetchWithRetry(`${this.baseUrl}/api/questions/`, {
+      const response = await this.fetchWithRetry(`${this.baseUrl}/question`, {
         method: 'POST',
         body: JSON.stringify(request),
       });
@@ -119,7 +119,7 @@ export class ApiClient {
 
   async healthCheck(): Promise<{ status: string; message: string }> {
     try {
-      const response = await this.fetchWithRetry(`${this.baseUrl}/health/`, {
+      const response = await this.fetchWithRetry(`${this.baseUrl}/health`, {
         method: 'GET',
       });
       
