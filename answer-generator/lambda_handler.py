@@ -25,6 +25,13 @@ logger = logging.getLogger(__name__)
 _rag_service = None
 _settings = None
 
+# CORS headers for all responses
+CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+}
+
 
 def get_services():
     """Initialize services on cold start, reuse on warm invocations"""
@@ -50,7 +57,10 @@ def handle_health_check() -> Dict[str, Any]:
     """
     return {
         'statusCode': 200,
-        'headers': {'Content-Type': 'application/json'},
+        'headers': {
+            'Content-Type': 'application/json',
+            **CORS_HEADERS
+        },
         'body': json.dumps({
             'status': 'healthy',
             'service': 'answer-generator',
@@ -87,7 +97,10 @@ def handle_question(event: Dict[str, Any]) -> Dict[str, Any]:
             logger.warning("Missing 'question' in request body")
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {
+                    'Content-Type': 'application/json',
+                    **CORS_HEADERS
+                },
                 'body': json.dumps({'error': 'Missing required field: question'})
             }
 
@@ -104,7 +117,10 @@ def handle_question(event: Dict[str, Any]) -> Dict[str, Any]:
             logger.error(f"RAG pipeline failed: {result.get('message')}")
             return {
                 'statusCode': 500,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {
+                    'Content-Type': 'application/json',
+                    **CORS_HEADERS
+                },
                 'body': json.dumps({
                     'error': result.get('message', 'Failed to retrieve context')
                 })
@@ -112,7 +128,10 @@ def handle_question(event: Dict[str, Any]) -> Dict[str, Any]:
 
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                **CORS_HEADERS
+            },
             'body': json.dumps({
                 'success': True,
                 'question': question,
@@ -126,7 +145,10 @@ def handle_question(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Invalid JSON in request body: {e}")
         return {
             'statusCode': 400,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                **CORS_HEADERS
+            },
             'body': json.dumps({'error': 'Invalid JSON in request body'})
         }
     except Exception as e:
@@ -138,7 +160,10 @@ def handle_question(event: Dict[str, Any]) -> Dict[str, Any]:
 
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                **CORS_HEADERS
+            },
             'body': json.dumps({
                 'error': str(e),
                 'error_type': type(e).__name__
@@ -171,6 +196,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     logger.info(f"API Gateway request: {http_method} {path}")
 
+    # Handle OPTIONS requests for CORS preflight
+    if http_method == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': ''
+        }
+
     # Route to appropriate handler
     if path == '/health' and http_method == 'GET':
         return handle_health_check()
@@ -180,6 +213,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         logger.warning(f"Unsupported endpoint: {http_method} {path}")
         return {
             'statusCode': 404,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                **CORS_HEADERS
+            },
             'body': json.dumps({'error': f'Endpoint not found: {http_method} {path}'})
         }
