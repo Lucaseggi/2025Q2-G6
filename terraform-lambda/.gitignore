@@ -7,7 +7,7 @@ terraform.tfstate.backup
 *.tfstate.*
 
 # Sensitive files
-terraform.tfvars
+# terraform.tfvars
 *.auto.tfvars
 
 # Crash logs
