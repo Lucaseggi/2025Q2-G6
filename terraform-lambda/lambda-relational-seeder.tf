@@ -30,6 +30,9 @@ resource "aws_lambda_invocation" "db_seed" {
   function_name =aws_lambda_function.db_seeder.function_name
   input      = jsonencode({})
   depends_on = [aws_lambda_function.db_seeder]
+  triggers = {
+    always_run = timestamp()
+  }
 }
 output "lambda_output" {
   value = aws_lambda_invocation.db_seed.result
