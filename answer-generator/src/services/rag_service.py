@@ -100,7 +100,7 @@ class RAGService:
                 return {
                     "success": True,
                     "context": {"normas_data": [], "norma_ids": []},
-                    "answer": "",
+                    "answer": "No documents found. Were they loaded?",
                     "message": "No similar documents found"
                 }
 
