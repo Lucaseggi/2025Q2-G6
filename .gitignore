@@ -46,10 +46,10 @@ coverage.xml
 .pytest_cache/
 
 # Environments
-.env
-.venv
-env/
-venv/
+# .env
+# .venv
+# env/
+# venv/
 ENV/
 env.bak/
 venv.bak/
@@ -69,8 +69,8 @@ Thumbs.db
 test_outputs/
 *.log
 # Sensitive environment files (contains credentials)
-.env
-*/.env
+# .env
+# */.env
 
 # Allow configuration files (no sensitive data)
 !config.env
@@ -98,5 +98,5 @@ DEPLOYMENT_GUIDE.md
 
 terraform-lambda/tfplan
 
-dev.env
+# dev.env
 *.jar
